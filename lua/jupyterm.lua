@@ -1,7 +1,8 @@
-local Jupyterm = {kernels={}}
+local Jupyterm = {kernels={}, send_memory={}}
 
 Jupyterm.config = {
-  focus_on_show = true
+  focus_on_show = true,
+  focus_on_send = false
 }
 
 local Split = require("nui.split")
@@ -116,7 +117,10 @@ function Jupyterm.hide_outputs(kernel)
   end
 end
 
-function Jupyterm.show_outputs(kernel)
+function Jupyterm.show_outputs(kernel, focus)
+  if focus == nil then
+    focus = Jupyterm.config.focus_on_show
+  end
   -- Refresh current window if output window
   if kernel == nil then
     kernel = Jupyterm.get_kernel_if_in_kernel_buf()
@@ -240,7 +244,7 @@ function Jupyterm.show_outputs(kernel)
   vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
 
   -- Navigate to end
-  if Jupyterm.config.focus_on_show then
+  if focus then
     Jupyterm.jump_to_output_end(kernel)
   end
 end
@@ -254,6 +258,10 @@ end
 
 function Jupyterm.send(kernel, code)
   vim.fn.JupyEval(tostring(kernel), code)
+  if Jupyterm.is_showing(tostring(kernel)) then
+    -- Delay a moment to try to allow processing
+    vim.defer_fn(function() Jupyterm.show_outputs(tostring(kernel), Jupyterm.config.focus_on_send) end, 1000)
+  end
 end
 
 function Jupyterm.send_repl_cell(kernel)
@@ -362,6 +370,109 @@ function Jupyterm.start_kernel(kernel)
   else
     vim.fn.JupyStart(kernel)
     Jupyterm.kernels[kernel] = {}
+  end
+end
+
+function Jupyterm.send_select(kernel, cmd)
+  if kernel == nil then
+    local buf = vim.api.nvim_get_current_buf()
+    kernel = Jupyterm.select_kernel()
+    Jupyterm.send_memory[buf] = kernel
+  else
+    Jupyterm.send(kernel, cmd)
+  end
+end
+
+function Jupyterm.send_line(kernel)
+  kernel = Jupyterm.cache_send(kernel)
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_buf_get_lines(0,row-1,row,true)
+  line = string.gsub(line[1], "^%s+", "")
+  Jupyterm.send_select(kernel, line)
+end
+
+function Jupyterm.send_lines(kernel,start_line,end_line)
+  kernel = Jupyterm.cache_send(kernel)
+  local lines = vim.api.nvim_buf_get_lines(0,start_line-1,end_line,false)
+  local no_empty = {}
+  local whitespace = 0
+  for i, v in ipairs(lines) do
+    if (string.gsub(v, "%s+", "") ~= "") then
+      if i == 1 then
+        local leading_whitespace = string.match(v, "^%s+")
+        if leading_whitespace then
+          whitespace = leading_whitespace:len()
+        end
+      end
+      no_empty[#no_empty+1] = string.sub(v, whitespace+1)
+    end
+  end
+  no_empty[#no_empty+1] = ""
+  local combined = table.concat(no_empty,"\n")
+  Jupyterm.send_select(kernel,combined)
+end
+
+function Jupyterm.send_selection(kernel,line,start_col,end_col)
+  local sc = nil
+  local ec = nil
+  if start_col > end_col then
+    sc = end_col
+    ec = start_col
+  else
+    sc = start_col
+    ec = end_col
+  end
+  local text = vim.api.nvim_buf_get_text(0,line-1,sc-1,line-1,ec,{})
+  Jupyterm.send_select(kernel,table.concat(text))
+end
+
+function Jupyterm.send_visual(kernel)
+  kernel = Jupyterm.cache_send(kernel)
+  local start_line, start_col = unpack(vim.fn.getpos("v"), 2, 4)
+  local end_line, end_col = unpack(vim.fn.getpos("."), 2, 4)
+  if (start_line == end_line) and (start_col ~= end_col) then
+    Jupyterm.send_selection(kernel,start_line,start_col,end_col)
+  else
+    if start_line > end_line then
+      Jupyterm.send_lines(kernel,end_line,start_line)
+    else
+      Jupyterm.send_lines(kernel,start_line,end_line)
+    end
+  end
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', false, true, true), 'nx', false)
+end
+
+function Jupyterm.send_file(kernel)
+  kernel = Jupyterm.cache_send(kernel)
+  local start_line = 1
+  local end_line = vim.api.nvim_buf_line_count(0)
+  Jupyterm.send_lines(kernel,start_line,end_line)
+end
+
+function Jupyterm.select_kernel()
+  local kernel_keys = vim.tbl_keys(Jupyterm.kernels)
+  local return_val = 1
+  vim.ui.select(kernel_keys, {
+    prompt = "Please select an option:",
+  }, function(choice)
+      return_val = choice
+    end
+  )
+  return return_val
+end
+
+function Jupyterm.cache_send(kernel)
+  if kernel == nil then
+    local buf = vim.api.nvim_get_current_buf()
+    if Jupyterm.send_memory[buf] then
+      return Jupyterm.send_memory[buf]
+    else
+      local new_kernel = Jupyterm.select_kernel()
+      Jupyterm.send_memory[buf] = new_kernel
+      return new_kernel
+    end
+  else
+    return kernel
   end
 end
 
