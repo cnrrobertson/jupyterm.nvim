@@ -1,8 +1,8 @@
-local Jupyterm = {}
+local Jupyterm = {kernels={}}
 
 local Split = require("nui.split")
 local NuiLine = require("nui.line")
-
+local NuiText = require("nui.text")
 
 vim.api.nvim_create_augroup("Jupyterm", {clear = true})
 vim.api.nvim_create_autocmd("FileType", {
@@ -21,8 +21,8 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.bo.shiftwidth = 4
     vim.bo.expandtab = true
     vim.keymap.set("n", "<cr>", Jupyterm.send_repl_cell, {desc="Send cell", buffer=0})
-    vim.keymap.set("n", "[", Jupyterm.jump_repl_up, {desc="Jump up one cell", buffer=0})
-    vim.keymap.set("n", "]", Jupyterm.jump_repl_down, {desc="Jump down one cell", buffer=0})
+    vim.keymap.set("n", "[c", Jupyterm.jump_repl_up, {desc="Jump up one cell", buffer=0})
+    vim.keymap.set("n", "]c", Jupyterm.jump_repl_down, {desc="Jump down one cell", buffer=0})
     vim.keymap.set("n", "<esc>", Jupyterm.show_outputs, {desc="Refresh", buffer=0})
   end
 })
@@ -45,38 +45,63 @@ local function strip(s)
 end
 
 function Jupyterm.get_cell_top(cur_line, ns_id)
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {0,0}, {cur_line,0}, {details=true})
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {0,0}, {cur_line-1,0}, {details=true, overlap=true})
   if #extmarks > 0 then
     return extmarks[#extmarks]
   end
 end
 
 function Jupyterm.get_cell_bottom(cur_line, ns_id)
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {cur_line,0}, {-1,0}, {details=true})
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {cur_line,0}, {-1,0}, {details=true, overlap=true})
   if #extmarks > 0 then
     return extmarks[1]
   end
 end
 
-function Jupyterm.show_outputs()
-  if Jupyterm.show_buf == nil then
-    Jupyterm.show_buf = vim.api.nvim_create_buf(false, true)
+function Jupyterm.is_jupyterm(buf)
+    return vim.api.nvim_get_option_value("filetype", {buf=buf}) == "jupyterm"
+end
+
+function Jupyterm.find_kernel(buf)
+  for k,v in pairs(Jupyterm.kernels) do
+    if v.show_buf and v.show_buf == buf then
+      return k
+    end
   end
-  if Jupyterm.show_win == nil or Jupyterm.show_win.winid == nil then
-    vim.api.nvim_set_option_value("filetype", "jupyterm", {buf = Jupyterm.show_buf})
-    Jupyterm.show_win = Split({
+end
+
+function Jupyterm.get_kernel_if_in_kernel_buf()
+  if Jupyterm.is_jupyterm(vim.api.nvim_get_current_buf()) then
+    return Jupyterm.find_kernel(vim.api.nvim_get_current_buf())
+  end
+end
+
+function Jupyterm.show_outputs(kernel)
+  if kernel == nil then
+    kernel = Jupyterm.get_kernel_if_in_kernel_buf()
+  end
+  local show_buf = Jupyterm.kernels[kernel].show_buf
+  local show_win = Jupyterm.kernels[kernel].show_win
+  if show_buf == nil then
+    Jupyterm.kernels[kernel].show_buf = vim.api.nvim_create_buf(false, true)
+    show_buf = Jupyterm.kernels[kernel].show_buf
+  else
+    vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
+  end
+  if show_win == nil or show_win.winid == nil then
+    vim.api.nvim_set_option_value("filetype", "jupyterm", {buf = show_buf})
+    Jupyterm.kernels[kernel].show_win = Split({
       relative = "editor",
       position = "right",
       size = "40%",
       enter = false
     })
-    Jupyterm.show_win.bufnr = Jupyterm.show_buf
-    Jupyterm.show_win:mount()
-  else
-    vim.api.nvim_buf_set_lines(Jupyterm.show_buf, 0, -1, false, {})
+    Jupyterm.kernels[kernel].show_win.bufnr = show_buf
+    Jupyterm.kernels[kernel].show_win:mount()
+    show_win = Jupyterm.kernels[kernel].show_win
   end
 
-  local kernel_lines = vim.fn.JupyOutput()
+  local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
   local input = kernel_lines[1]
   local output = kernel_lines[2]
 
@@ -88,121 +113,130 @@ function Jupyterm.show_outputs()
     local split_i = split_by_newlines(i)
     local in_txt = NuiLine()
     in_txt:append(
-      "",
-      {
-        line_hl_group = "JupytermInText",
-        hl_mode = "combine",
-        hl_eol = true,
-        virt_lines_above = true,
-        virt_lines = {
-          {{
-            "───────────────────────────────────────────────────────────────",
-            "JupytermInText"
-          }},
-          {{
+      -- "-- in --",
+      NuiText(
             string.format("In [%s]: ", ind),
-            "JupytermInText"
-          }}
-        }
-      }
+            {
+              hl_group="JupytermInText",
+              hl_mode = "combine",
+              hl_eol = true,
+              virt_lines_above = true,
+              virt_lines = {
+                {{
+                  "───────────────────────────────────────────────────────────────",
+                  "JupytermInText"
+                }},
+              }
+            }
+      ),
+      {}
     )
-    local buf_count = vim.api.nvim_buf_line_count(Jupyterm.show_buf)
+    local buf_count = vim.api.nvim_buf_line_count(show_buf)
     if buf_count == 1 then
-      in_txt:render(Jupyterm.show_buf, Jupyterm.ns_in, 2)
+      in_txt:render(show_buf, Jupyterm.ns_in, 2)
     else
-      in_txt:render(Jupyterm.show_buf, Jupyterm.ns_in, buf_count)
+      in_txt:render(show_buf, Jupyterm.ns_in, buf_count)
     end
-    vim.api.nvim_buf_set_lines(Jupyterm.show_buf, -1, -1, false, split_i)
+    vim.api.nvim_buf_set_lines(show_buf, -1, -1, false, split_i)
 
     -- Display outputs
     local out_txt = NuiLine()
     out_txt:append(
-      "",
-      {
-        line_hl_group = "JupytermOutText",
-        hl_mode = "combine",
-        hl_eol = true,
-        virt_lines_above = true,
-        virt_lines = {
-          {{
-            "───────────────────────────────",
-            "JupytermOutText"
-          }},
-          {{
+      -- "-- out --",
+      NuiText(
             string.format("Out [%s]: ", ind),
-            "JupytermOutText"
-          }}
-        }
-      }
+            {
+              hl_group="JupytermOutText",
+              hl_mode = "combine",
+              hl_eol = true,
+              virt_lines_above = true,
+              virt_lines = {
+                {{
+                  "───────────────────────────────",
+                  "JupytermOutText"
+                }},
+              }
+            }
+      ),
+      {}
     )
     local split_o = split_by_newlines(o)
     if strip(split_o[1]) ~= "" then
-      vim.api.nvim_buf_set_lines(Jupyterm.show_buf, -1, -1, false, {""})
-      out_txt:render(Jupyterm.show_buf, Jupyterm.ns_out, vim.api.nvim_buf_line_count(Jupyterm.show_buf))
-      vim.api.nvim_buf_set_lines(Jupyterm.show_buf, -1, -1, false, split_o)
+      vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
+      out_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf))
+      vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, split_o)
     end
-    vim.api.nvim_buf_set_lines(Jupyterm.show_buf, -1, -1, false, {""})
+    vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
   end
   local final_txt = NuiLine()
   final_txt:append(
-    "",
-    {
-      line_hl_group = "JupytermInText",
-      hl_mode = "combine",
-      hl_eol = true,
-      virt_lines_above = true,
-      virt_lines = {
-        {{
-          "───────────────────────────────────────────────────────────────",
-          "JupytermInText"
-        }},
-        {{
+    -- "-- in --",
+    NuiText(
           string.format("In [%s]: ", #input+1),
-          "JupytermInText"
-        }}
-      }
-    }
+          {
+            hl_group="JupytermInText",
+            hl_mode = "combine",
+            hl_eol = true,
+            virt_lines_above = true,
+            virt_lines = {
+              {{
+                "───────────────────────────────────────────────────────────────",
+                "JupytermInText"
+              }},
+            }
+          }
+    ),
+    {}
   )
-  final_txt:render(Jupyterm.show_buf, Jupyterm.ns_in, vim.api.nvim_buf_line_count(Jupyterm.show_buf))
-  vim.api.nvim_buf_set_lines(Jupyterm.show_buf, -1, -1, false, {""})
+  local final_loc = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
+  if final_loc == 1 then
+    final_loc = final_loc + 1
+  end
+  final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, final_loc)
+  vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
 
   -- Navigate to end
-  vim.api.nvim_win_set_cursor(Jupyterm.show_win.winid, {vim.api.nvim_buf_line_count(Jupyterm.show_buf), 0})
+  vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf), 0})
 end
 
-function Jupyterm.send(code)
-  vim.fn.JupyEval(code)
+function Jupyterm.send(kernel, code)
+  vim.fn.JupyEval(tostring(kernel), code)
 end
 
-function Jupyterm.send_repl_cell()
-  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.show_win.winid)
-  local top = Jupyterm.get_cell_top(cursor[1], Jupyterm.ns_in)
+function Jupyterm.send_repl_cell(kernel)
+  if kernel == nil then
+    kernel = Jupyterm.get_kernel_if_in_kernel_buf()
+  end
+  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
+  local top_in = Jupyterm.get_cell_top(cursor[1], Jupyterm.ns_in)
   local bottom_in = Jupyterm.get_cell_bottom(cursor[1], Jupyterm.ns_in)
   local bottom_out = Jupyterm.get_cell_bottom(cursor[1], Jupyterm.ns_out)
   local top_out = Jupyterm.get_cell_top(cursor[1], Jupyterm.ns_out)
-  if top then top = top[2] end
-  if bottom_in then bottom_in = bottom_in[2] end
-  if bottom_out then bottom_out = bottom_out[2] end
-  if top_out then top_out = top_out[2] end
+  if top_in then top_in = top_in[2]+1 end
+  if bottom_in then bottom_in = bottom_in[2]+1 end
+  if bottom_out then bottom_out = bottom_out[2]+1 end
+  if top_out then top_out = top_out[2]+1 end
 
   -- Ensure we don't send Out results
   local bottom = 0
-  if bottom_in and bottom_out and bottom_in > bottom_out then
-    if top_out and top_out > bottom_in then
-      bottom = top_out
+  if top_in and top_out and top_out > top_in then
+    return
+  end
+
+  -- Check if the last cell
+  if bottom_in then
+    -- Check if cell has an output
+    if bottom_out and bottom_in > bottom_out then
+      bottom = bottom_out-1
     else
-      bottom = bottom_out
+      bottom = bottom_in-1
     end
   else
-    if bottom_in then
-      bottom = bottom_in
-    else
-      bottom = vim.api.nvim_buf_line_count(Jupyterm.show_buf)
-    end
+    bottom = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
   end
 
   -- Clean up lines
-  local lines = vim.api.nvim_buf_get_lines(Jupyterm.show_buf, top, bottom, false)
+  local lines = vim.api.nvim_buf_get_lines(Jupyterm.kernels[kernel].show_buf, top_in, bottom, false)
   local clean_lines = {}
   for _,l in ipairs(lines) do
     if strip(l) ~= "" then
@@ -210,11 +244,16 @@ function Jupyterm.send_repl_cell()
     end
   end
 
+  -- Check if empty cell
+  if #clean_lines == 0 then
+    return
+  end
+
   -- Send lines
-  vim.fn.JupyEval(unpack(clean_lines))
+  vim.fn.JupyEval(tostring(kernel), unpack(clean_lines))
 
   -- Refresh
-  Jupyterm.show_outputs()
+  Jupyterm.show_outputs(kernel)
 end
 
 function Jupyterm.jump_repl_up(kernel)
@@ -261,7 +300,17 @@ function Jupyterm.jump_repl_down(kernel)
   end
 end
 
-vim.api.nvim_create_user_command("JupyShow", Jupyterm.show_outputs, {nargs="*"})
+function Jupyterm.start_kernel(kernel)
+  if Jupyterm.kernels[kernel] then
+    vim.print("Kernel "..kernel.." has already been started.")
+  else
+    vim.fn.JupyStart(kernel)
+    Jupyterm.kernels[kernel] = {}
+  end
+end
+
+vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs=1})
+vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs=1})
 
 _G.Jupyterm = Jupyterm
 return Jupyterm
