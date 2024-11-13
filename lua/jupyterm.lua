@@ -1,5 +1,9 @@
 local Jupyterm = {kernels={}}
 
+Jupyterm.config = {
+  focus_on_show = true
+}
+
 local Split = require("nui.split")
 local NuiLine = require("nui.line")
 local NuiText = require("nui.text")
@@ -9,7 +13,7 @@ vim.api.nvim_create_autocmd("FileType", {
   group = "Jupyterm",
   pattern = "jupyterm",
   callback = function()
-    local status, ts = pcall(require, 'nvim-treesitter')
+    local status, _ = pcall(require, 'nvim-treesitter')
     if status then
       vim.api.nvim_set_option_value("syntax", "on", {buf = 0})
       vim.treesitter.language.register('python', 'jupyterm')
@@ -76,20 +80,59 @@ function Jupyterm.get_kernel_if_in_kernel_buf()
   end
 end
 
+function Jupyterm.is_showing(kernel)
+  if Jupyterm.kernels[kernel].show_win then
+    if Jupyterm.kernels[kernel].show_win.winid then
+      return true
+    else
+      return false
+    end
+  else
+    return false
+  end
+end
+
+function Jupyterm.toggle_outputs(kernel)
+  -- Use buffer id as default
+  local kernel_buf_name = "buf:"..vim.api.nvim_get_current_buf()
+  if kernel == nil or kernel == "" then
+    kernel = Jupyterm.get_kernel_if_in_kernel_buf() or kernel_buf_name
+  end
+  if Jupyterm.kernels[kernel] == nil then
+    vim.print("No kernel named "..kernel)
+    return
+  end
+
+  if Jupyterm.is_showing(kernel) then
+    Jupyterm.hide_outputs(kernel)
+  else
+    Jupyterm.show_outputs(kernel)
+  end
+end
+
+function Jupyterm.hide_outputs(kernel)
+  if Jupyterm.kernels[kernel] then
+    Jupyterm.kernels[kernel].show_win:hide()
+  end
+end
+
 function Jupyterm.show_outputs(kernel)
+  -- Refresh current window if output window
   if kernel == nil then
     kernel = Jupyterm.get_kernel_if_in_kernel_buf()
   end
+
+  -- Check if window already exists
   local show_buf = Jupyterm.kernels[kernel].show_buf
   local show_win = Jupyterm.kernels[kernel].show_win
   if show_buf == nil then
     Jupyterm.kernels[kernel].show_buf = vim.api.nvim_create_buf(false, true)
     show_buf = Jupyterm.kernels[kernel].show_buf
+    vim.api.nvim_set_option_value("filetype", "jupyterm", {buf = show_buf})
   else
     vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
   end
-  if show_win == nil or show_win.winid == nil then
-    vim.api.nvim_set_option_value("filetype", "jupyterm", {buf = show_buf})
+  if show_win == nil then
     Jupyterm.kernels[kernel].show_win = Split({
       relative = "editor",
       position = "right",
@@ -99,6 +142,10 @@ function Jupyterm.show_outputs(kernel)
     Jupyterm.kernels[kernel].show_win.bufnr = show_buf
     Jupyterm.kernels[kernel].show_win:mount()
     show_win = Jupyterm.kernels[kernel].show_win
+  else
+    Jupyterm.kernels[kernel].show_win.bufnr = show_buf
+    Jupyterm.kernels[kernel].show_win:mount()
+    Jupyterm.kernels[kernel].show_win:show()
   end
 
   local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
@@ -113,7 +160,6 @@ function Jupyterm.show_outputs(kernel)
     local split_i = split_by_newlines(i)
     local in_txt = NuiLine()
     in_txt:append(
-      -- "-- in --",
       NuiText(
             string.format("In [%s]: ", ind),
             {
@@ -142,7 +188,6 @@ function Jupyterm.show_outputs(kernel)
     -- Display outputs
     local out_txt = NuiLine()
     out_txt:append(
-      -- "-- out --",
       NuiText(
             string.format("Out [%s]: ", ind),
             {
@@ -170,7 +215,6 @@ function Jupyterm.show_outputs(kernel)
   end
   local final_txt = NuiLine()
   final_txt:append(
-    -- "-- in --",
     NuiText(
           string.format("In [%s]: ", #input+1),
           {
@@ -196,7 +240,16 @@ function Jupyterm.show_outputs(kernel)
   vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
 
   -- Navigate to end
-  vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf), 0})
+  if Jupyterm.config.focus_on_show then
+    Jupyterm.jump_to_output_end(kernel)
+  end
+end
+
+function Jupyterm.jump_to_output_end(kernel)
+  local winid = Jupyterm.kernels[kernel].show_win.winid
+  local buf_len = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
+  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {buf_len, 0})
 end
 
 function Jupyterm.send(kernel, code)
@@ -301,6 +354,9 @@ function Jupyterm.jump_repl_down(kernel)
 end
 
 function Jupyterm.start_kernel(kernel)
+  if kernel == nil or kernel == "" then
+    kernel = "buf:"..vim.api.nvim_get_current_buf()
+  end
   if Jupyterm.kernels[kernel] then
     vim.print("Kernel "..kernel.." has already been started.")
   else
@@ -309,8 +365,10 @@ function Jupyterm.start_kernel(kernel)
   end
 end
 
-vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs=1})
+vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs=1})
+vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs=1})
 
 _G.Jupyterm = Jupyterm
 return Jupyterm
