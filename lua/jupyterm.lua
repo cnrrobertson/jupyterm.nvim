@@ -217,19 +217,47 @@ function Jupyterm.send_repl_cell()
   Jupyterm.show_outputs()
 end
 
-function Jupyterm.jump_repl_up()
-  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.show_win.winid)
-  local top = Jupyterm.get_cell_top(cursor[1], Jupyterm.ns_in)
-  if top then
-    vim.api.nvim_win_set_cursor(Jupyterm.show_win.winid, {top[2], 0})
+function Jupyterm.jump_repl_up(kernel)
+  if kernel == nil then
+    kernel = Jupyterm.get_kernel_if_in_kernel_buf()
+  end
+  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
+  local top_in = Jupyterm.get_cell_top(cursor[1], Jupyterm.ns_in)
+  local top_out = Jupyterm.get_cell_top(cursor[1], Jupyterm.ns_out)
+  if top_in then
+    -- Check if in "out" or "in" block
+    if top_out and top_in[2] < top_out[2] then
+      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {top_in[2]+2, 0})
+    else
+      -- Extra jump if in "in" block
+      top_in = Jupyterm.get_cell_top(top_in[2], Jupyterm.ns_in)
+      local top_loc = top_in[2]
+      if top_in[2] == 0 then
+        top_loc = top_loc+3
+      else
+        top_loc = top_loc+2
+      end
+      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {top_loc, 0})
+    end
   end
 end
 
-function Jupyterm.jump_repl_down()
-  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.show_win.winid)
-  local bottom = Jupyterm.get_cell_top(cursor[1], Jupyterm.ns_in)
-  if bottom then
-    vim.api.nvim_win_set_cursor(Jupyterm.show_win.winid, {bottom[2], 0})
+function Jupyterm.jump_repl_down(kernel)
+  if kernel == nil then
+    kernel = Jupyterm.get_kernel_if_in_kernel_buf()
+  end
+  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
+  local bottom_in = Jupyterm.get_cell_bottom(cursor[1], Jupyterm.ns_in)
+  local bottom_out = Jupyterm.get_cell_bottom(cursor[1], Jupyterm.ns_out)
+  if bottom_in then
+    -- Check if in "out" or "in" block
+    if bottom_out and bottom_in[2] < bottom_out[2] then
+      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {bottom_in[2]+2, 0})
+    else
+      -- Extra jump if in "in" block
+      bottom_in = Jupyterm.get_cell_bottom(bottom_in[2], Jupyterm.ns_in)
+      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {bottom_in[2]+2, 0})
+    end
   end
 end
 
