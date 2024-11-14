@@ -84,6 +84,8 @@ class Kernel(object):
         self.outputs = []
         self.lock = threading.Lock()
         self.queue = queue.Queue()
+        self.wait_str = "Computing..."
+        self.queue_str = "Queued"
 
     def start(self):
         self.km = KernelManager()
@@ -100,7 +102,7 @@ class Kernel(object):
         while True:
             code,oloc = self.queue.get()
             with self.lock:
-                self.outputs[oloc] = "Computing..."
+                self.outputs[oloc] = self.wait_str
             iopub = threading.Thread(target=self.listen_to_iopub, args=(oloc,))
             iopub.start()
             self.kc.execute(code)
@@ -110,7 +112,7 @@ class Kernel(object):
         code = "".join(args)
         with self.lock:
             self.inputs.append(code)
-            self.outputs.append("Queued...")
+            self.outputs.append(self.queue_str)
             oloc = len(self.outputs) - 1
             self.queue.put((code, oloc))
 
@@ -118,16 +120,17 @@ class Kernel(object):
     def listen_to_iopub(self, oloc):
         seen_input = False
         seen_output = False
-        while not (seen_input and seen_output):
+        idle = False
+        while not (seen_input and seen_output and idle):
             try:
                 msg = self.kc.get_iopub_msg()
                 if msg:
-                    seen_input, seen_output = self.handle_iopub_message(msg, seen_input, oloc)
+                    seen_input, seen_output, idle = self.handle_iopub_message(msg, seen_input, seen_output, oloc)
             except Exception as e:
-                # self.nvim.async_call(self.nvim.out_write, f"IOPub error: {str(e)}\n")
+                self.nvim.async_call(self.nvim.out_write, f"IOPub error: {str(e)}\n")
                 pass
 
-    def handle_iopub_message(self, msg, seen_input, oloc):
+    def handle_iopub_message(self, msg, seen_input, seen_output, oloc):
         with self.lock:
             msg_type = msg["msg_type"]
             content = msg["content"]
@@ -140,26 +143,33 @@ class Kernel(object):
                 pass
             elif msg_type == "execute_result":
                 if "text/plain" in content["data"]:
-                    self.outputs[oloc] = content["data"]["text/plain"]
-                    return seen_input, True
+                    self.update_output(oloc, content["data"]["text/plain"])
+                    seen_output = True
             elif msg_type == "error":
-                self.outputs[oloc] = f"{content['ename']}: {content['evalue']}"
-                return seen_input, True
+                self.update_output(oloc, f"{content['ename']}: {content['evalue']}")
+                seen_output = True
             elif msg_type == "stream":
-                self.outputs[oloc] = content["text"]
-                return seen_input, True
+                self.update_output(oloc, content['text'])
+                seen_output = True
             elif msg_type == "display_data":
                 self.handle_display_data(content, oloc)
-                return seen_input, True
+                seen_output = True
             elif msg_type == "update_display_data":
                 pass
             elif msg_type == "clear_output":
                 pass
-            if msg_type == "status" and content["execution_state"] == "idle":
-                if self.outputs[oloc] == "Computing..." or self.outputs[oloc] == "":
-                    self.outputs[oloc] = ""
-                    return seen_input, True
-        return seen_input, False
+            if msg_type == "status":
+                if "idle" in content['execution_state']:
+                    self.update_output(oloc, "", True)
+                    return seen_input, seen_output, True
+        return seen_input, seen_output, False
+
+    def update_output(self, oloc, new_addition, final=False):
+        output = self.outputs[oloc].replace(self.wait_str, "")
+        if final:
+            self.outputs[oloc] = output + new_addition
+        else:
+            self.outputs[oloc] = output + new_addition + self.wait_str
 
     def handle_display_data(self, content, oloc):
         img_data = content["data"].get("image/png")
@@ -167,7 +177,7 @@ class Kernel(object):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
                 f.write(base64.b64decode(img_data))
                 tmp_file_path = f.name
-            self.outputs[oloc] = f"[Image]:\n{tmp_file_path}"
+            self.update_output(oloc, f"[Image]:\n{tmp_file_path}")
 
             img_file = Image.open(tmp_file_path)
             img_file.show()
