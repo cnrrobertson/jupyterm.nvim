@@ -6,6 +6,7 @@ import tempfile
 from PIL import Image
 import threading
 import queue
+import re
 
 @pynvim.plugin
 class Jupyterm(object):
@@ -140,7 +141,9 @@ class Kernel(object):
             if msg_type == "execute_input":
                 seen_input = True
             elif msg_type == "status":
-                pass
+                if "idle" in content['execution_state'] and seen_input:
+                    self.update_output(oloc, "", True)
+                    return seen_input, True, True
             elif msg_type == "execute_reply":
                 pass
             elif msg_type == "execute_result":
@@ -151,7 +154,11 @@ class Kernel(object):
                 self.update_output(oloc, f"{content['ename']}: {content['evalue']}")
                 seen_output = True
             elif msg_type == "stream":
-                self.update_output(oloc, content['text'])
+                if content["name"] == "stderr":
+                    processed_str = "".join(content['text'].splitlines())
+                    self.update_output(oloc, "stderr:"+processed_str+"\n")
+                else:
+                    self.update_output(oloc, content['text'])
                 seen_output = True
             elif msg_type == "display_data":
                 self.handle_display_data(content, oloc)
@@ -160,14 +167,21 @@ class Kernel(object):
                 pass
             elif msg_type == "clear_output":
                 pass
-            if msg_type == "status":
-                if "idle" in content['execution_state']:
-                    self.update_output(oloc, "", True)
-                    return seen_input, seen_output, True
         return seen_input, seen_output, False
 
     def update_output(self, oloc, new_addition, final=False):
+        # Remove wait_str
         output = self.outputs[oloc].replace(self.wait_str, "")
+
+        # Check stderr
+        if "stderr:" in new_addition:
+            if new_addition.strip() == "stderr:":
+                return
+            if "stderr:" in output:
+                self.outputs[oloc] = re.sub(r'^stderr:.*$', new_addition, output.replace("\n\n","\n"), flags=re.MULTILINE)
+                return
+
+        # Finish
         if final:
             self.outputs[oloc] = output + new_addition
         else:
