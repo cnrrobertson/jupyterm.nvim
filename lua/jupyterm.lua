@@ -100,9 +100,10 @@ function Jupyterm.toggle_outputs(kernel)
   if kernel == nil or kernel == "" then
     kernel = Jupyterm.get_kernel_if_in_kernel_buf() or kernel_buf_name
   end
-  if Jupyterm.kernels[kernel] == nil then
-    vim.print("No kernel named "..kernel)
-    return
+
+  -- Auto start if not started
+  if not Jupyterm.kernels[kernel] then
+    Jupyterm.start_kernel(nil)
   end
 
   if Jupyterm.is_showing(kernel) then
