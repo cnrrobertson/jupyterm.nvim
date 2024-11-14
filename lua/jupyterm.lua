@@ -30,6 +30,7 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("n", "[c", Jupyterm.jump_repl_up, {desc="Jump up one cell", buffer=0})
     vim.keymap.set("n", "]c", Jupyterm.jump_repl_down, {desc="Jump down one cell", buffer=0})
     vim.keymap.set("n", "<esc>", function() Jupyterm.show_outputs(nil, true) end, {desc="Refresh", buffer=0})
+    vim.keymap.set("n", "<c-c>", Jupyterm.interrupt_kernel, {desc="Interrupt", buffer=0})
   end
 })
 
@@ -96,9 +97,8 @@ end
 
 function Jupyterm.toggle_outputs(kernel)
   -- Use buffer id as default
-  local kernel_buf_name = "buf:"..vim.api.nvim_get_current_buf()
   if kernel == nil or kernel == "" then
-    kernel = Jupyterm.get_kernel_if_in_kernel_buf() or kernel_buf_name
+    kernel = Jupyterm.get_kernel_buf_or_buf()
   end
 
   -- Auto start if not started
@@ -510,17 +510,30 @@ function Jupyterm.save_kernel_location(kernel)
   end
 end
 
+function Jupyterm.get_kernel_buf_or_buf()
+  local kernel_buf_name = "buf:"..vim.api.nvim_get_current_buf()
+  return Jupyterm.get_kernel_if_in_kernel_buf() or kernel_buf_name
+end
+
 function Jupyterm.shutdown_kernel(kernel)
   if kernel == nil or kernel == "" then
-    local buf = vim.api.nvim_get_current_buf()
-    kernel = "buf:"..buf
+    kernel = Jupyterm.get_kernel_buf_or_buf()
   end
   Jupyterm.kernels[kernel] = nil
   vim.fn.JupyShutdown(tostring(kernel))
 end
 
+function Jupyterm.interrupt_kernel(kernel)
+  if kernel == nil or kernel == "" then
+    kernel = Jupyterm.get_kernel_buf_or_buf()
+  end
+  Jupyterm.kernels[kernel] = nil
+  vim.fn.JupyInterrupt(tostring(kernel))
+end
+
 vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(args.args) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs=1})
 vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs=1})

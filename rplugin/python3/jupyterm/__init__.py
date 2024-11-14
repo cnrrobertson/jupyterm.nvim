@@ -55,12 +55,14 @@ class Jupyterm(object):
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
             return [], []
 
-    @pynvim.command("JupyInterrupt", nargs="1", sync=False)
+    @pynvim.function("JupyInterrupt", sync=False)
     def interrupt(self, args):
         kernel_name = args[0]
         if self._check_kernel(kernel_name):
             kernel = self.kernels[kernel_name]
-            return kernel.interrupt()
+            self.nvim.out_write(f"Interrupting kernel '{kernel_name}'.\n")
+            kernel.interrupt()
+            self.nvim.out_write(f"Kernel '{kernel_name}' interrupted.\n")
         else:
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
             return [], []
