@@ -1,9 +1,11 @@
 import pynvim
 from jupyter_client import KernelManager
+# from jupyter_client.kernelspec import KernelSpecManager
 import base64
 import tempfile
 from PIL import Image
 import threading
+import queue
 
 @pynvim.plugin
 class Jupyterm(object):
@@ -11,12 +13,17 @@ class Jupyterm(object):
         self.nvim = nvim
         self.kernels = {}
         self.lock = threading.Lock()
+        # ksm = KernelSpecManager()
+        # kernels = ksm.find_kernel_specs()
+        # self.nvim.out_write("Available kernels:\n")
+        # for name, path in kernels.items():
+        #     self.nvim.out_write(f"{name}: {path}\n")
 
     def _check_kernel(self, kernel):
         with self.lock:
             return kernel in self.kernels
 
-    @pynvim.function("JupyStart", sync=True)
+    @pynvim.function("JupyStart", sync=False)
     def start(self, args):
         kernel_name = args[0]
         if not self._check_kernel(kernel_name):
@@ -36,11 +43,7 @@ class Jupyterm(object):
 
     @pynvim.command("JupyExec", nargs="*", sync=False)
     def executec(self, args):
-        kernel_name = args[0]
-        if self._check_kernel(kernel_name):
-            self.kernels[kernel_name].execute(args[1:])
-        else:
-            self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
+        self.executef(args)
 
     @pynvim.function("JupyOutput", sync=True)
     def get_input_output(self, args):
@@ -52,7 +55,17 @@ class Jupyterm(object):
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
             return [], []
 
-    @pynvim.command("JupyShutdown", nargs="1", sync=True)
+    @pynvim.command("JupyInterrupt", nargs="1", sync=False)
+    def interrupt(self, args):
+        kernel_name = args[0]
+        if self._check_kernel(kernel_name):
+            kernel = self.kernels[kernel_name]
+            return kernel.interrupt()
+        else:
+            self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
+            return [], []
+
+    @pynvim.function("JupyShutdown", sync=False)
     def shutdown(self, args):
         kernel_name = args[0]
         if self._check_kernel(kernel_name):
@@ -70,6 +83,7 @@ class Kernel(object):
         self.inputs = []
         self.outputs = []
         self.lock = threading.Lock()
+        self.queue = queue.Queue()
 
     def start(self):
         self.km = KernelManager()
@@ -78,65 +92,88 @@ class Kernel(object):
         self.kc.start_channels()
         self.kc.wait_for_ready()
 
+        # Start thread to monitor executions
+        self.thread = threading.Thread(target=self.execution_monitor, daemon=True)
+        self.thread.start()
+
+    def execution_monitor(self):
+        while True:
+            code,oloc = self.queue.get()
+            with self.lock:
+                self.outputs[oloc] = "Computing..."
+            iopub = threading.Thread(target=self.listen_to_iopub, args=(oloc,))
+            iopub.start()
+            self.kc.execute(code)
+            iopub.join()
+
     def execute(self, args):
         code = "".join(args)
-        threading.Thread(target=self.execute_on_thread, args=(code,)).start()
-
-    def execute_on_thread(self, code):
         with self.lock:
             self.inputs.append(code)
-            self.outputs.append("Computing...")
-            self.kc.execute(code)
+            self.outputs.append("Queued...")
+            oloc = len(self.outputs) - 1
+            self.queue.put((code, oloc))
 
-            input_received = False
-            while True:
-                try:
-                    msg = self.kc.get_iopub_msg(timeout=10)
-                    if msg:
-                        # input_received = self.handle_message(msg)
-                        msg_type = msg["msg_type"]
-                        content = msg["content"]
 
-                        if msg_type == "execute_input":
-                            input_received = True
-                        elif msg_type == "status":
-                            pass
-                        elif msg_type == "execute_reply":
-                            pass
-                        elif msg_type == "execute_result":
-                            if "text/plain" in content["data"]:
-                                self.outputs[-1] = content["data"]["text/plain"]
-                                break
-                        elif msg_type == "error":
-                            self.outputs[-1] = f"{content['ename']}: {content['evalue']}"
-                            break
-                        elif msg_type == "stream":
-                            self.outputs[-1] = content["text"]
-                            break
-                        elif msg_type == "display_data":
-                            self.handle_display_data(content)
-                            break
-                        elif msg_type == "update_display_data":
-                            pass
-                        elif msg_type == "clear_output":
-                            pass
-                        if msg["msg_type"] == "status" and msg["content"]["execution_state"] == "idle" and input_received:
-                            self.outputs[-1] = ""
-                            break
-                except Exception as e:
-                    self.nvim.async_call(self.nvim.out_write, f"Error: {str(e)}\n")
-                    break
+    def listen_to_iopub(self, oloc):
+        seen_input = False
+        seen_output = False
+        while not (seen_input and seen_output):
+            try:
+                msg = self.kc.get_iopub_msg()
+                if msg:
+                    seen_input, seen_output = self.handle_iopub_message(msg, seen_input, oloc)
+            except Exception as e:
+                # self.nvim.async_call(self.nvim.out_write, f"IOPub error: {str(e)}\n")
+                pass
 
-    def handle_display_data(self, content):
+    def handle_iopub_message(self, msg, seen_input, oloc):
+        with self.lock:
+            msg_type = msg["msg_type"]
+            content = msg["content"]
+
+            if msg_type == "execute_input":
+                seen_input = True
+            elif msg_type == "status":
+                pass
+            elif msg_type == "execute_reply":
+                pass
+            elif msg_type == "execute_result":
+                if "text/plain" in content["data"]:
+                    self.outputs[oloc] = content["data"]["text/plain"]
+                    return seen_input, True
+            elif msg_type == "error":
+                self.outputs[oloc] = f"{content['ename']}: {content['evalue']}"
+                return seen_input, True
+            elif msg_type == "stream":
+                self.outputs[oloc] = content["text"]
+                return seen_input, True
+            elif msg_type == "display_data":
+                self.handle_display_data(content, oloc)
+                return seen_input, True
+            elif msg_type == "update_display_data":
+                pass
+            elif msg_type == "clear_output":
+                pass
+            if msg_type == "status" and content["execution_state"] == "idle":
+                if self.outputs[oloc] == "Computing..." or self.outputs[oloc] == "":
+                    self.outputs[oloc] = ""
+                    return seen_input, True
+        return seen_input, False
+
+    def handle_display_data(self, content, oloc):
         img_data = content["data"].get("image/png")
         if img_data:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
                 f.write(base64.b64decode(img_data))
                 tmp_file_path = f.name
-            self.outputs[-1] = f"[Image]:\n{tmp_file_path}"
+            self.outputs[oloc] = f"[Image]:\n{tmp_file_path}"
 
             img_file = Image.open(tmp_file_path)
             img_file.show()
+
+    def interrupt(self):
+        self.km.interrupt_kernel()
 
     def get_input_output(self):
         with self.lock:
@@ -145,4 +182,3 @@ class Kernel(object):
     def shutdown(self):
         self.kc.stop_channels()
         self.km.shutdown_kernel()
-

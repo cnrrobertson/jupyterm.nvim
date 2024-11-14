@@ -476,7 +476,17 @@ function Jupyterm.cache_send(kernel)
   end
 end
 
+function Jupyterm.shutdown_kernel(kernel)
+  if kernel == nil or kernel == "" then
+    local buf = vim.api.nvim_get_current_buf()
+    kernel = "buf:"..buf
+  end
+  Jupyterm.kernels[kernel] = nil
+  vim.fn.JupyShutdown(tostring(kernel))
+end
+
 vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs=1})
 vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs=1})
