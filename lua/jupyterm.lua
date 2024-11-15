@@ -527,7 +527,6 @@ function Jupyterm.interrupt_kernel(kernel)
   if kernel == nil or kernel == "" then
     kernel = Jupyterm.get_kernel_buf_or_buf()
   end
-  Jupyterm.kernels[kernel] = nil
   vim.fn.JupyInterrupt(tostring(kernel))
 end
 
