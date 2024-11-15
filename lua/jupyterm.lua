@@ -62,6 +62,22 @@ function Jupyterm.setup()
     refresh_timer:start(delay, delay, vim.schedule_wrap(Jupyterm.refresh_windows))
   end
 
+  -- Clean up jupyterms on exit (helps session management)
+  vim.api.nvim_create_autocmd({"ExitPre"}, {
+    group = "Jupyterm",
+    pattern="*",
+    callback = function()
+      for k,_ in pairs(Jupyterm.kernels) do
+        if Jupyterm.is_showing(k) then
+          local kernel_win = Jupyterm.kernels[k].show_win.winid
+          vim.api.nvim_win_close(kernel_win, true)
+        end
+      end
+    end
+  })
+
+end
+
 function Jupyterm.refresh_windows()
   for k,_ in pairs(Jupyterm.kernels) do
     if Jupyterm.is_showing(k) then
