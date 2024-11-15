@@ -4,9 +4,19 @@ Jupyterm.config = {
   focus_on_show = true,
   focus_on_send = false,
   send_update_delay = 100,
+  ui = {
+    format = "split",
+    config = {
+      relative = "editor",
+      position = "right",
+      size = "40%",
+      enter = false
+    }
+  }
 }
 
 local Split = require("nui.split")
+local Popup = require("nui.popup")
 local NuiLine = require("nui.line")
 local NuiText = require("nui.text")
 
@@ -143,12 +153,11 @@ function Jupyterm.show_outputs(kernel, focus)
     vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
   end
   if show_win == nil then
-    Jupyterm.kernels[kernel].show_win = Split({
-      relative = "editor",
-      position = "right",
-      size = "40%",
-      enter = false
-    })
+    if Jupyterm.config.ui.format == "split" then
+      Jupyterm.kernels[kernel].show_win = Split(Jupyterm.config.ui.config)
+    else
+      Jupyterm.kernels[kernel].show_win = Popup(Jupyterm.config.ui.config)
+    end
     Jupyterm.kernels[kernel].show_win.bufnr = show_buf
     Jupyterm.kernels[kernel].show_win:mount()
     show_win = Jupyterm.kernels[kernel].show_win
@@ -534,7 +543,7 @@ vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kern
 vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
-vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs=1})
+vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs=1})
 
 _G.Jupyterm = Jupyterm
