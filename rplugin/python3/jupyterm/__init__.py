@@ -181,11 +181,14 @@ class Kernel(object):
                 self.outputs[oloc] = re.sub(r'^stderr:.*$', new_addition, output.replace("\n\n","\n"), flags=re.MULTILINE)
                 return
 
+        # Deal with ANSI control characters
+        processed_addition = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', new_addition)
+
         # Finish
         if final:
-            self.outputs[oloc] = output + new_addition
+            self.outputs[oloc] = output + processed_addition
         else:
-            self.outputs[oloc] = output + new_addition + self.wait_str
+            self.outputs[oloc] = output + processed_addition + self.wait_str
 
     def handle_display_data(self, content, oloc):
         img_data = content["data"].get("image/png")
