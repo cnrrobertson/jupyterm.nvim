@@ -1,4 +1,4 @@
-local Jupyterm = {kernels={}, send_memory={}}
+local Jupyterm = {kernels={}, send_memory={}, edited={}}
 
 Jupyterm.config = {
   focus_on_show = true,
@@ -81,6 +81,20 @@ end
 function Jupyterm.refresh_windows()
   for k,_ in pairs(Jupyterm.kernels) do
     if Jupyterm.is_showing(k) then
+      -- Only refresh if not edited
+      if Jupyterm.edited[k] then
+        return
+      end
+      -- Only refresh if not in insert mode in the output window
+      local mode = vim.api.nvim_get_mode().mode
+      if mode == 'i' then
+        local kernel_win = Jupyterm.kernels[k].show_win.winid
+        local cur_win = vim.api.nvim_get_current_win()
+        if kernel_win == cur_win then
+          Jupyterm.edited[k] = true
+          return
+        end
+      end
       Jupyterm.show_outputs(k, false)
     end
   end
@@ -311,6 +325,9 @@ function Jupyterm.show_outputs(kernel, focus)
       vim.api.nvim_win_set_cursor(kernel_win,cursor)
     end
   end
+
+  -- Reset edited status
+  Jupyterm.edited[kernel] = nil
 end
 
 function Jupyterm.jump_to_output_end(kernel)
