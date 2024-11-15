@@ -4,6 +4,10 @@ Jupyterm.config = {
   focus_on_show = true,
   focus_on_send = false,
   send_update_delay = 100,
+  output_refresh = {
+    enabled = true,
+    delay = 1000,
+  },
   ui = {
     format = "split",
     config = {
@@ -48,6 +52,23 @@ Jupyterm.ns_in = vim.api.nvim_create_namespace("jupyterm-in")
 Jupyterm.ns_out = vim.api.nvim_create_namespace("jupyterm-out")
 vim.api.nvim_set_hl(0, "JupytermInText", {link = "@markup.heading.2.markdown", default = true})
 vim.api.nvim_set_hl(0, "JupytermOutText", {link = "Identifier", default = true})
+
+
+function Jupyterm.setup()
+  -- Periodically refresh displayed windows
+  if Jupyterm.config.output_refresh.enabled then
+    local refresh_timer = vim.loop.new_timer()
+    local delay = Jupyterm.config.output_refresh.delay
+    refresh_timer:start(delay, delay, vim.schedule_wrap(Jupyterm.refresh_windows))
+  end
+
+function Jupyterm.refresh_windows()
+  for k,_ in pairs(Jupyterm.kernels) do
+    if Jupyterm.is_showing(k) then
+      Jupyterm.show_outputs(k, false)
+    end
+  end
+end
 
 local function split_by_newlines(input)
     local result = {}
@@ -134,12 +155,16 @@ function Jupyterm.show_outputs(kernel, focus)
     focus = Jupyterm.config.focus_on_show
   end
   -- Refresh current window if output window
-  local cur_win = nil
+  if kernel == nil or kernel == "" then
+    kernel = Jupyterm.get_kernel_buf_or_buf()
+  end
+
+  -- Track previous location if showing
+  local kernel_win = nil
   local cursor = nil
-  if kernel == nil then
-    kernel = Jupyterm.get_kernel_if_in_kernel_buf()
-    cur_win = vim.api.nvim_get_current_win()
-    cursor = vim.api.nvim_win_get_cursor(cur_win)
+  if Jupyterm.is_showing(kernel) then
+    kernel_win = Jupyterm.kernels[kernel].show_win.winid
+    cursor = vim.api.nvim_win_get_cursor(kernel_win)
   end
 
   -- Check if window already exists
@@ -262,12 +287,12 @@ function Jupyterm.show_outputs(kernel, focus)
   -- Navigate to end
   if focus then
     Jupyterm.jump_to_output_end(kernel)
-  elseif cur_win and cursor then
+  elseif kernel_win and cursor then
     local buf_len = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
     if cursor[1] > buf_len then
-      vim.api.nvim_win_set_cursor(cur_win,{buf_len,0})
+      vim.api.nvim_win_set_cursor(kernel_win,{buf_len,0})
     else
-      vim.api.nvim_win_set_cursor(cur_win,cursor)
+      vim.api.nvim_win_set_cursor(kernel_win,cursor)
     end
   end
 end
