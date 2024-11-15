@@ -27,9 +27,10 @@ class Jupyterm(object):
     @pynvim.function("JupyStart", sync=False)
     def start(self, args):
         kernel_name = args[0]
+        cwd = args[1]
         if not self._check_kernel(kernel_name):
             kernel = Kernel(self.nvim)
-            kernel.start()
+            kernel.start(cwd)
             with self.lock:
                 self.kernels[kernel_name] = kernel
             self.nvim.out_write(f"Kernel '{kernel_name}' started.\n")
@@ -90,9 +91,9 @@ class Kernel(object):
         self.wait_str = "Computing..."
         self.queue_str = "Queued"
 
-    def start(self):
+    def start(self, cwd="."):
         self.km = KernelManager()
-        self.km.start_kernel()
+        self.km.start_kernel(cwd=cwd)
         self.kc = self.km.client()
         self.kc.start_channels()
         self.kc.wait_for_ready()

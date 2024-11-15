@@ -457,16 +457,17 @@ function Jupyterm.jump_repl_down(kernel)
   end
 end
 
-function Jupyterm.start_kernel(kernel)
+function Jupyterm.start_kernel(kernel, cwd)
   if kernel == nil or kernel == "" then
     local buf = vim.api.nvim_get_current_buf()
     kernel = "buf:"..buf
     Jupyterm.send_memory[buf] = kernel
+    cwd = vim.fn.expand("%:p:h")
   end
   if Jupyterm.kernels[kernel] then
     vim.print("Kernel "..kernel.." has already been started.")
   else
-    vim.fn.JupyStart(kernel)
+    vim.fn.JupyStart(kernel, cwd)
     Jupyterm.kernels[kernel] = {}
   end
 end
@@ -597,7 +598,7 @@ function Jupyterm.interrupt_kernel(kernel)
   vim.fn.JupyInterrupt(tostring(kernel))
 end
 
-vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs="*"})
 vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
