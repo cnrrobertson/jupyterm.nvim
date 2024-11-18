@@ -158,7 +158,7 @@ end
 
 function Jupyterm.toggle_outputs(kernel)
   -- Use buffer id as default
-  if kernel == nil or kernel == "" then
+  if kernel == nil then
     kernel = Jupyterm.get_kernel_buf_or_buf()
   end
 
@@ -176,7 +176,7 @@ end
 
 function Jupyterm.hide_outputs(kernel)
   -- Use buffer id as default
-  if kernel == nil or kernel == "" then
+  if kernel == nil then
     kernel = Jupyterm.get_kernel_buf_or_buf()
   end
 
@@ -190,7 +190,7 @@ function Jupyterm.show_outputs(kernel, focus, full)
     focus = Jupyterm.config.focus_on_show
   end
   -- Refresh current window if output window
-  if kernel == nil or kernel == "" then
+  if kernel == nil then
     kernel = Jupyterm.get_kernel_buf_or_buf()
   end
 
@@ -466,7 +466,7 @@ function Jupyterm.jump_repl_down(kernel)
 end
 
 function Jupyterm.start_kernel(kernel, cwd)
-  if kernel == nil or kernel == "" then
+  if kernel == nil then
     local buf = vim.api.nvim_get_current_buf()
     kernel = "buf:"..buf
     Jupyterm.send_memory[buf] = kernel
@@ -592,7 +592,7 @@ function Jupyterm.get_kernel_buf_or_buf()
 end
 
 function Jupyterm.shutdown_kernel(kernel)
-  if kernel == nil or kernel == "" then
+  if kernel == nil then
     kernel = Jupyterm.get_kernel_buf_or_buf()
   end
   Jupyterm.kernels[kernel] = nil
@@ -600,18 +600,18 @@ function Jupyterm.shutdown_kernel(kernel)
 end
 
 function Jupyterm.interrupt_kernel(kernel)
-  if kernel == nil or kernel == "" then
+  if kernel == nil then
     kernel = Jupyterm.get_kernel_buf_or_buf()
   end
   vim.fn.JupyInterrupt(tostring(kernel))
 end
 
-vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(args.args) end, {nargs="*"})
-vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(args.args) end, {nargs="?"})
-vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(args.args) end, {nargs="?"})
-vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
-vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs="*"})
-vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(unpack(args.fargs)) end, {nargs="*"})
+vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(unpack(args.fargs)) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(unpack(args.fargs)) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(unpack(args.fargs)) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(unpack(args.fargs)) end, {nargs="*"})
+vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(unpack(args.fargs)) end, {nargs="?"})
 
 _G.Jupyterm = Jupyterm
 return Jupyterm
