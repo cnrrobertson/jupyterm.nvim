@@ -175,6 +175,11 @@ function Jupyterm.toggle_outputs(kernel)
 end
 
 function Jupyterm.hide_outputs(kernel)
+  -- Use buffer id as default
+  if kernel == nil or kernel == "" then
+    kernel = Jupyterm.get_kernel_buf_or_buf()
+  end
+
   if Jupyterm.kernels[kernel] then
     Jupyterm.kernels[kernel].show_win:hide()
   end
@@ -605,8 +610,8 @@ vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kern
 vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
-vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs=1})
 vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs="*"})
+vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs="?"})
 
 _G.Jupyterm = Jupyterm
 return Jupyterm
