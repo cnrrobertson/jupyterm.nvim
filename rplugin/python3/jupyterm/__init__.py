@@ -171,8 +171,7 @@ class Kernel(object):
         return seen_input, seen_output, False
 
     def update_output(self, oloc, new_addition, final=False):
-        # Remove wait_str
-        output = self.outputs[oloc].replace(self.wait_str, "")
+        output = self.outputs[oloc]
 
         # Check stderr
         if "stderr:" in new_addition:
@@ -181,6 +180,9 @@ class Kernel(object):
             if "stderr:" in output:
                 self.outputs[oloc] = re.sub(r'^stderr:.*$', new_addition, output.replace("\n\n","\n"), flags=re.MULTILINE)
                 return
+
+        # Remove wait_str
+        output = output.replace(self.wait_str, "")
 
         # Deal with ANSI control characters
         processed_addition = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', new_addition)
