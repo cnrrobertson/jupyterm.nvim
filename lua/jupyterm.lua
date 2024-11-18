@@ -3,10 +3,9 @@ local Jupyterm = {kernels={}, send_memory={}, edited={}}
 Jupyterm.config = {
   focus_on_show = true,
   focus_on_send = false,
-  send_update_delay = 100,
   output_refresh = {
     enabled = true,
-    delay = 1000,
+    delay = 500,
   },
   ui = {
     format = "split",
@@ -15,7 +14,8 @@ Jupyterm.config = {
       position = "right",
       size = "40%",
       enter = false
-    }
+    },
+    max_displayed_lines = 1000,
   }
 }
 
@@ -95,7 +95,7 @@ function Jupyterm.refresh_windows()
           return
         end
       end
-      Jupyterm.show_outputs(k, false)
+      Jupyterm.show_outputs(k, false, Jupyterm.kernels[k].full)
     end
   end
 end
@@ -180,7 +180,7 @@ function Jupyterm.hide_outputs(kernel)
   end
 end
 
-function Jupyterm.show_outputs(kernel, focus)
+function Jupyterm.show_outputs(kernel, focus, full)
   if focus == nil then
     focus = Jupyterm.config.focus_on_show
   end
@@ -227,38 +227,44 @@ function Jupyterm.show_outputs(kernel, focus)
   local input = kernel_lines[1]
   local output = kernel_lines[2]
 
-  for ind = 1, #input do
+  -- Display empty cell
+  local final_txt = NuiLine()
+  final_txt:append(
+    NuiText(
+          string.format("In [%s]: ", #input+1),
+          {
+            hl_group="JupytermInText",
+            hl_mode = "combine",
+            hl_eol = true,
+            virt_lines_above = true,
+            virt_lines = {
+              {{
+                "───────────────────────────────────────────────────────────────",
+                "JupytermInText"
+              }},
+            }
+          }
+    ),
+    {}
+  )
+  vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {"",""})
+  final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, 2)
+
+  -- Display previous cells
+  for ind = #input, 1, -1 do
+
+    -- Check for long display
+    local buf_count = vim.api.nvim_buf_line_count(show_buf)
+    if full then
+      Jupyterm.kernels[kernel].full = true
+    else
+      Jupyterm.kernels[kernel].full = false
+      if buf_count > Jupyterm.config.ui.max_displayed_lines then
+        break
+      end
+    end
     local i = input[ind]
     local o = output[ind]
-
-    -- Display inputs
-    local split_i = split_by_newlines(i)
-    local in_txt = NuiLine()
-    in_txt:append(
-      NuiText(
-            string.format("In [%s]: ", ind),
-            {
-              hl_group="JupytermInText",
-              hl_mode = "combine",
-              hl_eol = true,
-              virt_lines_above = true,
-              virt_lines = {
-                {{
-                  "───────────────────────────────────────────────────────────────",
-                  "JupytermInText"
-                }},
-              }
-            }
-      ),
-      {}
-    )
-    local buf_count = vim.api.nvim_buf_line_count(show_buf)
-    if buf_count == 1 then
-      in_txt:render(show_buf, Jupyterm.ns_in, 2)
-    else
-      in_txt:render(show_buf, Jupyterm.ns_in, buf_count)
-    end
-    vim.api.nvim_buf_set_lines(show_buf, -1, -1, false, split_i)
 
     -- Display outputs
     local out_txt = NuiLine()
@@ -282,37 +288,36 @@ function Jupyterm.show_outputs(kernel, focus)
     )
     local split_o = split_by_newlines(o)
     if strip(split_o[1]) ~= "" then
-      vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
-      out_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf))
-      vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, split_o)
+      vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, split_o)
+      vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
+      out_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, 2)
     end
-    vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
-  end
-  local final_txt = NuiLine()
-  final_txt:append(
-    NuiText(
-          string.format("In [%s]: ", #input+1),
-          {
-            hl_group="JupytermInText",
-            hl_mode = "combine",
-            hl_eol = true,
-            virt_lines_above = true,
-            virt_lines = {
-              {{
-                "───────────────────────────────────────────────────────────────",
-                "JupytermInText"
-              }},
+
+    -- Display inputs
+    local split_i = split_by_newlines(i)
+    local in_txt = NuiLine()
+    in_txt:append(
+      NuiText(
+            string.format("In [%s]: ", ind),
+            {
+              hl_group="JupytermInText",
+              hl_mode = "combine",
+              hl_eol = true,
+              virt_lines_above = true,
+              virt_lines = {
+                {{
+                  "───────────────────────────────────────────────────────────────",
+                  "JupytermInText"
+                }},
+              }
             }
-          }
-    ),
-    {}
-  )
-  local final_loc = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
-  if final_loc == 1 then
-    final_loc = final_loc + 1
+      ),
+      {}
+    )
+    vim.api.nvim_buf_set_lines(show_buf, 1, 1, false, split_i)
+    vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
+    in_txt:render(show_buf, Jupyterm.ns_in, 2)
   end
-  final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, final_loc)
-  vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, -1, -1, false, {""})
 
   -- Navigate to end
   if focus then
@@ -352,11 +357,9 @@ function Jupyterm.send(kernel, code)
 
   -- Update window
   if Jupyterm.is_showing(tostring(kernel)) then
-    -- Delay a moment to try to allow processing
-    local delay = Jupyterm.config.send_update_delay
     local focus = Jupyterm.config.focus_on_send
-    vim.defer_fn(function() Jupyterm.show_outputs(tostring(kernel), focus) end, delay)
-    vim.defer_fn(function() Jupyterm.scroll_to_bottom(tostring(kernel)) end, delay)
+    Jupyterm.show_outputs(tostring(kernel), focus)
+    Jupyterm.scroll_to_bottom(tostring(kernel))
   end
 end
 
@@ -602,8 +605,8 @@ vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kern
 vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(args.args) end, {nargs="?"})
-vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyHide", function(args) Jupyterm.hide_outputs(args.args) end, {nargs=1})
+vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(args.args) end, {nargs="*"})
 
 _G.Jupyterm = Jupyterm
 return Jupyterm
