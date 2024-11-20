@@ -128,6 +128,17 @@ function Jupyterm.setup()
     })
   end
 
+  -- Keep track of output buffer edits to avoid overwriting on refresh
+  vim.api.nvim_create_autocmd({"TextChangedI"}, {
+    group = "Jupyterm",
+    pattern = "jupyterm:*",
+    callback = function()
+      local kernel = Jupyterm.get_kernel_if_in_kernel_buf()
+      if kernel then
+        Jupyterm.edited[kernel] = true
+      end
+    end
+  })
 end
 
 function Jupyterm.refresh_windows()
@@ -136,16 +147,6 @@ function Jupyterm.refresh_windows()
       -- Only refresh if not edited
       if Jupyterm.edited[k] then
         return
-      end
-      -- Only refresh if not in insert mode in the output window
-      local mode = vim.api.nvim_get_mode().mode
-      if mode == 'i' then
-        local kernel_win = Jupyterm.kernels[k].show_win.winid
-        local cur_win = vim.api.nvim_get_current_win()
-        if kernel_win == cur_win then
-          Jupyterm.edited[k] = true
-          return
-        end
       end
       Jupyterm.show_outputs(k, false, Jupyterm.kernels[k].full)
     end
@@ -432,6 +433,9 @@ function Jupyterm.send(kernel, code)
     Jupyterm.show_outputs(tostring(kernel), focus)
     Jupyterm.scroll_output_to_bottom(tostring(kernel))
   end
+
+  -- Reset edited status
+  Jupyterm.edited[kernel] = nil
 end
 
 function Jupyterm.send_repl_cell(kernel)
