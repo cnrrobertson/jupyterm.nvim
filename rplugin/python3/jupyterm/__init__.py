@@ -167,14 +167,17 @@ class Kernel(object):
                     self.update_output(oloc, content["data"]["text/plain"])
                     seen_output = True
             elif msg_type == "error":
-                self.update_output(oloc, f"{content['ename']}: {content['evalue']}")
+                self.update_output(oloc, f"{content['ename']}: {content['evalue']}\n")
+                for trace in content['traceback']:
+                    processed_trace = self.handle_ansi_cc(trace).strip("\n")
+                    self.update_output(oloc, f"{processed_trace}\n")
                 seen_output = True
             elif msg_type == "stream":
                 if content["name"] == "stderr":
                     processed_str = "".join(content['text'].splitlines())
                     self.update_output(oloc, "stderr:"+processed_str+"\n")
                 else:
-                    self.update_output(oloc, content['text'])
+                    self.update_output(oloc, content['text']+"\n")
                 seen_output = True
             elif msg_type == "display_data":
                 self.handle_display_data(content, oloc)
@@ -200,7 +203,7 @@ class Kernel(object):
         output = output.replace(self.wait_str, "")
 
         # Deal with ANSI control characters
-        processed_addition = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', new_addition)
+        processed_addition = self.handle_ansi_cc(new_addition)
 
         # Finish
         if final:
@@ -214,10 +217,13 @@ class Kernel(object):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
                 f.write(base64.b64decode(img_data))
                 tmp_file_path = f.name
-            self.update_output(oloc, f"[Image]:\n{tmp_file_path}")
+            self.update_output(oloc, f"[Image]:\n{tmp_file_path}\n")
 
             img_file = Image.open(tmp_file_path)
             img_file.show()
+
+    def handle_ansi_cc(self, entry):
+        return re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', entry)
 
     def interrupt(self):
         self.km.interrupt_kernel()
