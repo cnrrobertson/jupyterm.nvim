@@ -69,6 +69,7 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("n", "]c", Jupyterm.jump_repl_down, {desc="Jump down one cell", buffer=0})
     vim.keymap.set("n", "<esc>", function() Jupyterm.show_outputs(nil, true) end, {desc="Refresh", buffer=0})
     vim.keymap.set("n", "<c-c>", Jupyterm.interrupt_kernel, {desc="Interrupt", buffer=0})
+    vim.keymap.set("n", "<c-q>", Jupyterm.shutdown_kernel, {desc="Shutdown", buffer=0})
   end
 })
 
