@@ -3,6 +3,7 @@ local Jupyterm = {kernels={}, send_memory={}, edited={}}
 Jupyterm.config = {
   default_kernel = "python3",
   focus_on_show = true,
+  show_on_send = true,
   focus_on_send = false,
   output_refresh = {
     enabled = true,
@@ -236,10 +237,10 @@ function Jupyterm.show_outputs(kernel, focus, full)
 
   -- Track previous location if showing
   local kernel_win = nil
-  local cursor = nil
+  local win_view = nil
   if Jupyterm.is_showing(kernel) then
     kernel_win = Jupyterm.kernels[kernel].show_win.winid
-    cursor = vim.api.nvim_win_get_cursor(kernel_win)
+    win_view = vim.api.nvim_win_call(kernel_win, vim.fn.winsaveview)
   end
 
   -- Check if window already exists
@@ -368,33 +369,27 @@ function Jupyterm.show_outputs(kernel, focus, full)
 
   -- Navigate to end
   if focus then
-    Jupyterm.jump_to_output_end(kernel)
-  elseif kernel_win and cursor then
-    local buf_len = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
-    if cursor[1] > buf_len then
-      vim.api.nvim_win_set_cursor(kernel_win,{buf_len,0})
-    else
-      vim.api.nvim_win_set_cursor(kernel_win,cursor)
-    end
+    Jupyterm.navigate_to_output_end(kernel)
+  elseif kernel_win and win_view then
+    vim.api.nvim_win_call(kernel_win, function() vim.fn.winrestview(win_view) end)
   end
 
   -- Reset edited status
   Jupyterm.edited[kernel] = nil
 end
 
-function Jupyterm.jump_to_output_end(kernel)
+
+function Jupyterm.navigate_to_output_end(kernel)
   local winid = Jupyterm.kernels[kernel].show_win.winid
   local buf_len = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
   vim.api.nvim_set_current_win(winid)
   vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {buf_len, 0})
 end
 
-function Jupyterm.scroll_to_bottom(kernel)
+function Jupyterm.scroll_output_to_bottom(kernel)
   local cur_win = vim.api.nvim_get_current_win()
   local cursor = vim.api.nvim_win_get_cursor(cur_win)
-  local target_win = Jupyterm.kernels[kernel].show_win.winid
-  vim.api.nvim_set_current_win(target_win)
-  vim.cmd('normal! G')
+  Jupyterm.navigate_to_output_end(kernel)
   vim.api.nvim_set_current_win(cur_win)
   vim.api.nvim_win_set_cursor(cur_win, cursor)
 end
@@ -403,10 +398,10 @@ function Jupyterm.send(kernel, code)
   vim.fn.JupyEval(tostring(kernel), code)
 
   -- Update window
-  if Jupyterm.is_showing(tostring(kernel)) then
+  if Jupyterm.is_showing(tostring(kernel)) or Jupyterm.config.show_on_send then
     local focus = Jupyterm.config.focus_on_send
     Jupyterm.show_outputs(tostring(kernel), focus)
-    Jupyterm.scroll_to_bottom(tostring(kernel))
+    Jupyterm.scroll_output_to_bottom(tostring(kernel))
   end
 end
 
