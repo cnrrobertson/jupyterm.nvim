@@ -361,7 +361,10 @@ function Jupyterm.show_outputs(kernel, focus, full)
       {}
     )
     local split_o = split_by_newlines(o)
-    if strip(split_o[1]) ~= "" then
+    if #split_o > Jupyterm.config.ui.max_displayed_lines then
+      split_o = {unpack(split_o, #split_o-Jupyterm.config.ui.max_displayed_lines+1, #split_o)}
+    end
+    if (#split_o ~= 1) or (strip(split_o[1]) ~= "") then
       vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, split_o)
       vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
       out_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, 2)
