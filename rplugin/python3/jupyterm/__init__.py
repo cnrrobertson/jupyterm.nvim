@@ -26,14 +26,15 @@ class Jupyterm(object):
 
     @pynvim.function("JupyStart", sync=False)
     def start(self, args):
-        kernel_name = args[0]
+        kernel_id = args[0]
         cwd = args[1]
-        if not self._check_kernel(kernel_name):
-            kernel = Kernel(self.nvim)
-            kernel.start(cwd)
+        kernel_name = args[2]
+        if not self._check_kernel(kernel_id):
+            kernel = Kernel(self.nvim, cwd, kernel_name)
+            kernel.start()
             with self.lock:
-                self.kernels[kernel_name] = kernel
-            self.nvim.out_write(f"Kernel '{kernel_name}' started.\n")
+                self.kernels[kernel_id] = kernel
+            self.nvim.out_write(f"Kernel '{kernel_id}' started.\n")
 
     @pynvim.function("JupyEval", sync=False)
     def executef(self, args):
@@ -82,18 +83,20 @@ class Jupyterm(object):
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
 
 class Kernel(object):
-    def __init__(self, nvim):
+    def __init__(self, nvim, cwd=".", kernel_name="python3"):
         self.nvim = nvim
         self.inputs = []
         self.outputs = []
+        self.cwd = cwd
+        self.kernel_name = kernel_name
         self.lock = threading.Lock()
         self.queue = queue.Queue()
         self.wait_str = "Computing..."
         self.queue_str = "Queued"
 
-    def start(self, cwd="."):
-        self.km = KernelManager()
-        self.km.start_kernel(cwd=cwd)
+    def start(self):
+        self.km = KernelManager(kernel_name=self.kernel_name)
+        self.km.start_kernel(cwd=self.cwd)
         self.kc = self.km.client()
         self.kc.start_channels()
         self.kc.wait_for_ready()

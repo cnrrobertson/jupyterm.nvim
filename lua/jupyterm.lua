@@ -1,6 +1,7 @@
 local Jupyterm = {kernels={}, send_memory={}, edited={}}
 
 Jupyterm.config = {
+  default_kernel = "python3",
   focus_on_show = true,
   focus_on_send = false,
   output_refresh = {
@@ -19,6 +20,18 @@ Jupyterm.config = {
   }
 }
 
+local kernel_to_lang = {
+  python3="python",
+  ir="r",
+  ijulia="julia",
+}
+
+local lang_to_kernel = {
+  python="python3",
+  r="ir",
+  julia="ijulia",
+}
+
 local Split = require("nui.split")
 local Popup = require("nui.popup")
 local NuiLine = require("nui.line")
@@ -27,15 +40,26 @@ local NuiText = require("nui.text")
 vim.api.nvim_create_augroup("Jupyterm", {clear = true})
 vim.api.nvim_create_autocmd("FileType", {
   group = "Jupyterm",
-  pattern = "jupyterm",
+  pattern = "jupyterm-*",
   callback = function()
+    -- Identify language
+    local buf_name = vim.api.nvim_buf_get_name(0)
+    local language = "python"
+    local kernel_name = "python3"
+    for k,v in pairs(kernel_to_lang) do
+      if string.find(buf_name, ":"..k..":") then
+        language = v
+        kernel_name = k
+      end
+    end
+
     local status, _ = pcall(require, 'nvim-treesitter')
     if status then
       vim.api.nvim_set_option_value("syntax", "on", {buf = 0})
-      vim.treesitter.language.register('python', 'jupyterm')
+      vim.treesitter.language.register(language, 'jupyterm-'..kernel_name)
       vim.cmd[[TSBufEnable highlight]]
     else
-      vim.cmd[[runtime! syntax/python.vim]]
+      vim.cmd("runtime! syntax/"..language..".vim")
     end
     vim.bo.tabstop = 4
     vim.bo.shiftwidth = 4
@@ -112,6 +136,19 @@ local function strip(s)
     return s:match("^%s*(.-)%s*$")
 end
 
+local function rename_buffer(bufnr, name)
+  vim.api.nvim_buf_set_name(bufnr,name)
+  -- Renaming causes duplication of terminal buffer -> delete old buffer
+  -- https://github.com/neovim/neovim/issues/20349
+  local alt = vim.api.nvim_buf_call(bufnr, function()
+    return vim.fn.bufnr('#')
+  end)
+  if alt ~= bufnr and alt ~= -1 then
+    pcall(vim.api.nvim_buf_delete, alt, {force=true})
+  end
+end
+
+
 function Jupyterm.get_cell_top(cur_line, ns_id)
   local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {0,0}, {cur_line-1,0}, {details=true, overlap=true})
   if #extmarks > 0 then
@@ -127,7 +164,7 @@ function Jupyterm.get_cell_bottom(cur_line, ns_id)
 end
 
 function Jupyterm.is_jupyterm(buf)
-    return vim.api.nvim_get_option_value("filetype", {buf=buf}) == "jupyterm"
+    return string.find(vim.api.nvim_get_option_value("filetype", {buf=buf}), "jupyterm") ~= nil
 end
 
 function Jupyterm.find_kernel(buf)
@@ -164,7 +201,9 @@ function Jupyterm.toggle_outputs(kernel)
 
   -- Auto start if not started
   if not Jupyterm.kernels[kernel] then
-    Jupyterm.start_kernel(nil)
+    local ft = vim.bo.filetype
+    local kernel_name = lang_to_kernel[ft] or lang_to_kernel["python"]
+    Jupyterm.start_kernel(nil, nil, kernel_name)
   end
 
   if Jupyterm.is_showing(kernel) then
@@ -208,7 +247,9 @@ function Jupyterm.show_outputs(kernel, focus, full)
   if show_buf == nil then
     Jupyterm.kernels[kernel].show_buf = vim.api.nvim_create_buf(false, true)
     show_buf = Jupyterm.kernels[kernel].show_buf
-    vim.api.nvim_set_option_value("filetype", "jupyterm", {buf = show_buf})
+    local kernel_name = Jupyterm.kernels[kernel].kernel_name
+    rename_buffer(show_buf, "jupyterm:"..kernel_name..":"..kernel)
+    vim.api.nvim_set_option_value("filetype", "jupyterm-"..kernel_name, {buf = show_buf})
   else
     vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
   end
@@ -465,7 +506,7 @@ function Jupyterm.jump_repl_down(kernel)
   end
 end
 
-function Jupyterm.start_kernel(kernel, cwd)
+function Jupyterm.start_kernel(kernel, cwd, kernel_name)
   if kernel == nil then
     local buf = vim.api.nvim_get_current_buf()
     kernel = "buf:"..buf
@@ -475,8 +516,9 @@ function Jupyterm.start_kernel(kernel, cwd)
   if Jupyterm.kernels[kernel] then
     vim.print("Kernel "..kernel.." has already been started.")
   else
-    vim.fn.JupyStart(kernel, cwd)
-    Jupyterm.kernels[kernel] = {}
+    kernel_name = kernel_name or Jupyterm.config.default_kernel
+    vim.fn.JupyStart(kernel, cwd, kernel_name)
+    Jupyterm.kernels[kernel] = {kernel_name=kernel_name}
   end
 end
 
