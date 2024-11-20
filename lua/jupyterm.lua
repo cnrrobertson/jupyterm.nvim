@@ -648,8 +648,16 @@ function Jupyterm.interrupt_kernel(kernel)
   vim.fn.JupyInterrupt(tostring(kernel))
 end
 
+function Jupyterm.check_kernel_status(kernel)
+  if kernel == nil then
+    kernel = Jupyterm.get_kernel_buf_or_buf()
+  end
+  vim.fn.JupyStatus(tostring(kernel))
+end
+
 vim.api.nvim_create_user_command("JupyStart", function(args) Jupyterm.start_kernel(unpack(args.fargs)) end, {nargs="*"})
 vim.api.nvim_create_user_command("JupyShutdown", function(args) Jupyterm.shutdown_kernel(unpack(args.fargs)) end, {nargs="?"})
+vim.api.nvim_create_user_command("JupyStatus", function(args) Jupyterm.check_kernel_status(unpack(args.fargs)) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyInterrupt", function(args) Jupyterm.interrupt_kernel(unpack(args.fargs)) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyToggle", function(args) Jupyterm.toggle_outputs(unpack(args.fargs)) end, {nargs="?"})
 vim.api.nvim_create_user_command("JupyShow", function(args) Jupyterm.show_outputs(unpack(args.fargs)) end, {nargs="*"})

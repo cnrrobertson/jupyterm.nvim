@@ -82,6 +82,16 @@ class Jupyterm(object):
         else:
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
 
+    @pynvim.function("JupyStatus", sync=True)
+    def status(self, args):
+        kernel_name = args[0]
+        if self._check_kernel(kernel_name):
+            kernel = self.kernels[kernel_name]
+            status = kernel.get_status()
+            self.nvim.out_write(f"Kernel '{kernel_name}' status: {status}\n")
+        else:
+            self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
+
 class Kernel(object):
     def __init__(self, nvim, cwd=".", kernel_name="python3"):
         self.nvim = nvim
@@ -93,6 +103,7 @@ class Kernel(object):
         self.queue = queue.Queue()
         self.wait_str = "Computing..."
         self.queue_str = "Queued"
+        self.kernel_status = "Initialized"
 
     def start(self):
         self.km = KernelManager(kernel_name=self.kernel_name)
@@ -145,6 +156,7 @@ class Kernel(object):
             if msg_type == "execute_input":
                 seen_input = True
             elif msg_type == "status":
+                self.kernel_status = content["execution_state"]
                 if "idle" in content['execution_state'] and seen_input:
                     self.update_output(oloc, "", True)
                     return seen_input, True, True
@@ -213,6 +225,10 @@ class Kernel(object):
     def get_input_output(self):
         with self.lock:
             return self.inputs, self.outputs
+
+    def get_status(self):
+        with self.lock:
+            return self.kernel_status
 
     def shutdown(self):
         self.kc.stop_channels()
