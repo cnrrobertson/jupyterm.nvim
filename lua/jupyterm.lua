@@ -102,6 +102,32 @@ function Jupyterm.setup()
     end
   })
 
+  -- Only allow output buffers in jupyterm windows
+  local major = vim.version().major
+  local minor = vim.version().minor
+  if (major < 1) and (minor > 9) then
+    vim.api.nvim_create_autocmd({"BufWinEnter"}, {
+      group = "Jupyterm",
+      pattern = "jupyterm:*",
+      callback = function()
+        vim.o.winfixbuf = true
+      end
+    })
+  else
+    vim.api.nvim_create_autocmd({"BufWinEnter"}, {
+      group = "Jupyterm",
+      pattern = "*",
+      callback = function()
+        local prev_file_nuiterm = vim.api.nvim_eval('bufname("#") =~ "jupyterm:"')
+        local cur_file_nuiterm = vim.api.nvim_eval('bufname("%") =~ "jupyterm:"')
+        local prev_bufwin = vim.api.nvim_eval('win_findbuf(bufnr("#"))')
+        if (prev_file_nuiterm == 1) and (cur_file_nuiterm == 0) and (#prev_bufwin == 0) then
+          vim.schedule(function()vim.cmd[[b#]]end)
+        end
+      end
+    })
+  end
+
 end
 
 function Jupyterm.refresh_windows()
