@@ -666,6 +666,7 @@ function Jupyterm.shutdown_kernel(kernel)
   if kernel == nil then
     kernel = Jupyterm.get_kernel_buf_or_buf()
   end
+  vim.api.nvim_buf_delete(Jupyterm.kernels[kernel].show_win.bufnr, {force=true})
   Jupyterm.kernels[kernel] = nil
   vim.fn.JupyShutdown(tostring(kernel))
 end
