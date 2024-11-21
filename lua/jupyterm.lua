@@ -129,7 +129,7 @@ function Jupyterm.setup()
   end
 
   -- Keep track of output buffer edits to avoid overwriting on refresh
-  vim.api.nvim_create_autocmd({"TextChangedI"}, {
+  vim.api.nvim_create_autocmd({"TextChangedI", "TextChangedP"}, {
     group = "Jupyterm",
     pattern = "jupyterm:*",
     callback = function()
@@ -145,10 +145,9 @@ function Jupyterm.refresh_windows()
   for k,_ in pairs(Jupyterm.kernels) do
     if Jupyterm.is_showing(k) then
       -- Only refresh if not edited
-      if Jupyterm.edited[k] then
-        return
+      if not Jupyterm.edited[k] then
+        Jupyterm.show_outputs(k, false, Jupyterm.kernels[k].full)
       end
-      Jupyterm.show_outputs(k, false, Jupyterm.kernels[k].full)
     end
   end
 end
