@@ -174,8 +174,7 @@ class Kernel(object):
                 seen_output = True
             elif msg_type == "stream":
                 if content["name"] == "stderr":
-                    processed_str = "".join(content['text'].splitlines())
-                    self.update_output(oloc, "stderr:"+processed_str+"\n")
+                    self.update_output(oloc, "stderr:"+content['text']+"\n")
                 else:
                     self.update_output(oloc, content['text']+"\n")
                 seen_output = True
