@@ -7,7 +7,7 @@ Jupyterm.config = {
   focus_on_send = false,
   output_refresh = {
     enabled = true,
-    delay = 500,
+    delay = 2000,
   },
   ui = {
     format = "split",
@@ -17,7 +17,7 @@ Jupyterm.config = {
       size = "40%",
       enter = false
     },
-    max_displayed_lines = 1000,
+    max_displayed_lines = 500,
   }
 }
 
@@ -129,13 +129,19 @@ function Jupyterm.setup()
   end
 
   -- Keep track of output buffer edits to avoid overwriting on refresh
-  vim.api.nvim_create_autocmd({"TextChangedI", "TextChangedP"}, {
+  vim.api.nvim_create_autocmd({"ModeChanged"}, {
     group = "Jupyterm",
-    pattern = "jupyterm:*",
+    pattern = {"n:[vViRsS\x16\x13]*", "n:no*"},
     callback = function()
-      local kernel = Jupyterm.get_kernel_if_in_kernel_buf()
-      if kernel then
-        Jupyterm.edited[kernel] = true
+      local bufnr = vim.api.nvim_get_current_buf()
+      local filename = vim.api.nvim_buf_get_name(bufnr)
+
+      -- Check if the filename matches the desired pattern
+      if filename:match("jupyterm:*") then
+        local kernel = Jupyterm.get_kernel_if_in_kernel_buf()
+        if kernel then
+          Jupyterm.edited[kernel] = true
+        end
       end
     end
   })
