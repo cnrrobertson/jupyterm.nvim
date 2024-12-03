@@ -4,7 +4,7 @@ local display = require("jupyterm.display")
 local manage_kernels = require("jupyterm.manage_kernels")
 local execute = require("jupyterm.execute")
 
-local Jupyterm = {kernels={}, send_memory={}, edited={}}
+local Jupyterm = {kernels={}, send_memory={}, edited={}, jupystring={}}
 
 Jupyterm.kernel_to_lang = {
   python3="python",
@@ -61,8 +61,12 @@ function Jupyterm.setup(opts)
         vim.api.nvim_set_option_value("syntax", "on", {buf = 0})
         vim.treesitter.language.register(language, 'jupyterm-'..kernel_name)
         vim.cmd[[TSBufEnable highlight]]
+        local bufnr = vim.api.nvim_get_current_buf()
+        Jupyterm.jupystring[bufnr] = "\"\"\""
       else
         vim.cmd("runtime! syntax/"..language..".vim")
+        local bufnr = vim.api.nvim_get_current_buf()
+        Jupyterm.jupystring[bufnr] = "#"
       end
       vim.bo.tabstop = 4
       vim.bo.shiftwidth = 4

@@ -126,10 +126,12 @@ function display.show_outputs(kernel, focus, full)
   local output = kernel_lines[2]
 
   -- Display empty display_block
+  local bufnr = Jupyterm.kernels[kernel].show_win.bufnr
+  local commentstring = Jupyterm.jupystring[bufnr]
   local final_txt = NuiLine()
   final_txt:append(
     NuiText(
-          string.format("\"\"\" In [%s]: ", #input+1),
+          string.format(commentstring.." In [%s]: ", #input+1),
           {
             hl_group="JupytermInText",
             hl_mode = "combine",
@@ -168,7 +170,7 @@ function display.show_outputs(kernel, focus, full)
     local out_txt = NuiLine()
     out_txt:append(
       NuiText(
-        string.format("\"\"\" Out [%s]:", ind),
+        string.format(commentstring.." Out [%s]:", ind),
         {
           hl_group="JupytermOutText",
           hl_mode = "combine",
@@ -186,7 +188,7 @@ function display.show_outputs(kernel, focus, full)
     local out_txt2 = NuiLine()
     out_txt2:append(
       NuiText(
-        "\"\"\"",
+        commentstring,
         {
           hl_group="JupytermOutText",
           hl_mode = "combine",
@@ -210,7 +212,7 @@ function display.show_outputs(kernel, focus, full)
     local in_txt = NuiLine()
     in_txt:append(
       NuiText(
-            string.format("\"\"\" In [%s]: ", ind),
+            string.format(commentstring.." In [%s]: ", ind),
             {
               hl_group="JupytermInText",
               hl_mode = "combine",
@@ -229,7 +231,7 @@ function display.show_outputs(kernel, focus, full)
     local in_txt2 = NuiLine()
     in_txt2:append(
       NuiText(
-        "\"\"\"",
+        commentstring,
         {
           hl_group="JupytermInText",
           hl_mode = "combine",
