@@ -129,7 +129,7 @@ function display.show_outputs(kernel, focus, full)
   local final_txt = NuiLine()
   final_txt:append(
     NuiText(
-          string.format("In [%s]: ", #input+1),
+          string.format("\"\"\" In [%s]: ", #input+1),
           {
             hl_group="JupytermInText",
             hl_mode = "combine",
@@ -168,27 +168,38 @@ function display.show_outputs(kernel, focus, full)
     local out_txt = NuiLine()
     out_txt:append(
       NuiText(
-            string.format("Out [%s]: ", ind),
-            {
-              hl_group="JupytermOutText",
-              hl_mode = "combine",
-              hl_eol = true,
-              virt_lines_above = true,
-              virt_lines = {
-                {{
-                  "───────────────────────────────",
-                  "JupytermOutText"
-                }},
-              }
-            }
-      ),
-      {}
+        string.format("\"\"\" Out [%s]:", ind),
+        {
+          hl_group="JupytermOutText",
+          hl_mode = "combine",
+          hl_eol = true,
+          virt_lines_above = true,
+          virt_lines = {
+            {{
+              "───────────────────────────────",
+              "JupytermOutText"
+            }},
+          }
+        }
+      ), {}
+    )
+    local out_txt2 = NuiLine()
+    out_txt2:append(
+      NuiText(
+        "\"\"\"",
+        {
+          hl_group="JupytermOutText",
+          hl_mode = "combine",
+        }
+      ), {}
     )
     local split_o = utils.split_by_newlines(o)
     if #split_o > Jupyterm.config.ui.max_displayed_lines then
       split_o = {unpack(split_o, #split_o-Jupyterm.config.ui.max_displayed_lines+1, #split_o)}
     end
     if (#split_o ~= 1) or (utils.strip(split_o[1]) ~= "") then
+      vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
+      out_txt2:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, 2)
       vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, split_o)
       vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
       out_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, 2)
@@ -199,7 +210,7 @@ function display.show_outputs(kernel, focus, full)
     local in_txt = NuiLine()
     in_txt:append(
       NuiText(
-            string.format("In [%s]: ", ind),
+            string.format("\"\"\" In [%s]: ", ind),
             {
               hl_group="JupytermInText",
               hl_mode = "combine",
@@ -215,6 +226,18 @@ function display.show_outputs(kernel, focus, full)
       ),
       {}
     )
+    local in_txt2 = NuiLine()
+    in_txt2:append(
+      NuiText(
+        "\"\"\"",
+        {
+          hl_group="JupytermInText",
+          hl_mode = "combine",
+        }
+      ), {}
+    )
+    vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
+    in_txt2:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, 2)
     vim.api.nvim_buf_set_lines(show_buf, 1, 1, false, split_i)
     vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
     in_txt:render(show_buf, Jupyterm.ns_in, 2)
