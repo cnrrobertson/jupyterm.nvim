@@ -16,6 +16,23 @@ local config = {
       enter = false
     },
     max_displayed_lines = 500,
+    menu = {
+      keys = {
+        focus_next = {"j", "<Down>", "<Tab>"},
+        focus_prev = {"k", "<Up>", "<S-Tab>"},
+        submit = {"<CR>", "<Space>"},
+        close = {"<Esc>", "<C-c>", "q"},
+        new = {"n"},
+        destroy = {"d"},
+        toggle = {"w"},
+      },
+      opts = {
+        relative = "editor",
+        position = '50%',
+        size = '50%',
+        zindex = 500
+      }
+    }
   }
 }
 

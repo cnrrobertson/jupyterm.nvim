@@ -3,6 +3,7 @@ local utils = require("jupyterm.utils")
 local display = require("jupyterm.display")
 local manage_kernels = require("jupyterm.manage_kernels")
 local execute = require("jupyterm.execute")
+local menu = require("jupyterm.menu")
 
 local Jupyterm = {kernels={}, send_memory={}, edited={}, jupystring={}}
 
@@ -39,6 +40,7 @@ function Jupyterm.setup(opts)
   vim.api.nvim_create_user_command("JupyToggle", function(args) display.toggle_outputs(unpack(args.fargs)) end, {nargs="?"})
   vim.api.nvim_create_user_command("JupyShow", function(args) display.show_outputs(unpack(args.fargs)) end, {nargs="*"})
   vim.api.nvim_create_user_command("JupyHide", function(args) display.hide_outputs(unpack(args.fargs)) end, {nargs="?"})
+  vim.api.nvim_create_user_command("JupyMenu", function(args) menu.toggle_menu() end, {nargs=0})
 
   -- Set configs for output windows/buffers
   vim.api.nvim_create_autocmd("FileType", {
