@@ -179,7 +179,10 @@ class Kernel(object):
                     self.update_output(oloc, content['text']+"\n")
                 seen_output = True
             elif msg_type == "display_data":
-                self.handle_display_data(content, oloc)
+                if "text/plain" in content["data"].keys():
+                    self.update_output(oloc, content["data"]["text/plain"])
+                else:
+                    self.handle_image_display(content, oloc)
                 seen_output = True
             elif msg_type == "update_display_data":
                 pass
@@ -210,7 +213,7 @@ class Kernel(object):
         else:
             self.outputs[oloc] = output + processed_addition + self.wait_str
 
-    def handle_display_data(self, content, oloc):
+    def handle_image_display(self, content, oloc):
         img_data = content["data"].get("image/png")
         if img_data:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
