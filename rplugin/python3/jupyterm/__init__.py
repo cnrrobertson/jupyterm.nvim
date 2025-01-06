@@ -183,10 +183,9 @@ class Kernel(object):
                     self.update_output(oloc, content['text']+"\n")
                 seen_output = True
             elif msg_type == "display_data":
+                self.handle_image_display(content, oloc)
                 if "text/plain" in content["data"].keys():
-                    self.update_output(oloc, content["data"]["text/plain"])
-                else:
-                    self.handle_image_display(content, oloc)
+                    self.update_output(oloc, content["data"]["text/plain"]+"\n")
                 seen_output = True
             elif msg_type == "update_display_data":
                 pass
