@@ -1,8 +1,10 @@
 # jupyterm.nvim
 Jupyter protocol built into REPL form for Neovim.
 
+# Installation
+On the python side, this requires `jupyter_client`, `pynvim`, and `pillow` (to automatically display images) to be installed.
+
 ## TODO
 - [ ] Add ability to fold input or output cells in display
-- [ ] Fix refresh to allow for text changes in output buffer in normal mode (current only sets edited for insert mode)
 - [ ] Show display results inline if desired
 - [ ] Find a way to disable/change highlighting in output cells
