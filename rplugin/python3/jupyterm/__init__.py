@@ -145,9 +145,12 @@ class Kernel(object):
 
     def handle_helpdoc(self, code, oloc):
         info = self.kc.inspect(code, detail_level=0, reply=True)
-        processed_info = self.handle_ansi_cc(info["content"]["data"]["text/plain"])
         with self.lock:
-            self.update_output(oloc, f"{processed_info}\n")
+            if "text/plain" in info["content"]["data"].keys():
+                processed_info = self.handle_ansi_cc(info["content"]["data"]["text/plain"])
+                self.outputs[oloc] = f"{processed_info}"
+            else:
+                self.outputs[oloc] = "No info from kernel."
 
     def listen_to_iopub(self, oloc):
         seen_input = False
