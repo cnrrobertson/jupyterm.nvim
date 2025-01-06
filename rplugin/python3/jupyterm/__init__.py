@@ -125,10 +125,15 @@ class Kernel(object):
             code,oloc = self.queue.get()
             with self.lock:
                 self.outputs[oloc] = self.wait_str
-            iopub = threading.Thread(target=self.listen_to_iopub, args=(oloc,))
-            iopub.start()
-            self.kc.execute(code)
-            iopub.join()
+            if (code.strip()[0] == "?") | (code.strip()[-1] == "?"):
+                iopub = threading.Thread(target=self.handle_helpdoc, args=(code, oloc))
+                iopub.start()
+                iopub.join()
+            else:
+                iopub = threading.Thread(target=self.listen_to_iopub, args=(oloc,))
+                iopub.start()
+                self.kc.execute(code)
+                iopub.join()
 
     def execute(self, args):
         code = "".join(args)
@@ -138,6 +143,11 @@ class Kernel(object):
             oloc = len(self.outputs) - 1
             self.queue.put((code, oloc))
 
+    def handle_helpdoc(self, code, oloc):
+        info = self.kc.inspect(code, detail_level=0, reply=True)
+        processed_info = self.handle_ansi_cc(info["content"]["data"]["text/plain"])
+        with self.lock:
+            self.update_output(oloc, f"{processed_info}\n")
 
     def listen_to_iopub(self, oloc):
         seen_input = False
