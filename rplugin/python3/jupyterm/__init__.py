@@ -3,7 +3,11 @@ from jupyter_client import KernelManager
 # from jupyter_client.kernelspec import KernelSpecManager
 import base64
 import tempfile
-from PIL import Image
+try:
+    from PIL import Image
+    pillow_installed = True
+except ImportError:
+    pillow_installed = False
 import threading
 import queue
 import re
@@ -221,8 +225,11 @@ class Kernel(object):
                 tmp_file_path = f.name
             self.update_output(oloc, f"[Image]:\n{tmp_file_path}\n")
 
-            img_file = Image.open(tmp_file_path)
-            img_file.show()
+            if pillow_installed:
+                img_file = Image.open(tmp_file_path)
+                img_file.show()
+            else:
+                self.nvim.async_call(self.nvim.out_write, f"Image not displayed: `pillow` not installed in python env.")
 
     def handle_ansi_cc(self, entry):
         return re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', entry)
