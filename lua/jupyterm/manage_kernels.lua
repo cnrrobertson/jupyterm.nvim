@@ -17,7 +17,7 @@ end
 function manage_kernels.start_kernel(kernel, cwd, kernel_name)
   if kernel == nil then
     local buf = vim.api.nvim_get_current_buf()
-    kernel = "buf:"..buf
+    kernel = utils.make_kernel_name()
     Jupyterm.send_memory[buf] = kernel
     cwd = vim.fn.expand("%:p:h")
   end

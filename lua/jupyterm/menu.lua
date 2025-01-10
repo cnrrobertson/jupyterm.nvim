@@ -181,7 +181,7 @@ function menu.add_kernels(lines)
       if display.is_showing(n) then
         pre_str = "* "
       end
-      local display = pre_str..": "..buf_name
+      local display = pre_str..buf_name
       local menu_item = Menu.item(
         display,{kernel=n}
       )

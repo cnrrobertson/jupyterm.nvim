@@ -18,8 +18,15 @@ function utils.get_kernel_if_in_kernel_buf()
   end
 end
 
+function utils.make_kernel_name()
+  local buf = vim.api.nvim_get_current_buf()
+  local bufname = vim.api.nvim_buf_get_name(buf)
+  bufname = vim.fn.fnamemodify(bufname, ":.")
+  return "buf:"..buf..":"..bufname
+end
+
 function utils.get_kernel_buf_or_buf()
-  local kernel_buf_name = "buf:"..vim.api.nvim_get_current_buf()
+  kernel_buf_name = utils.make_kernel_name()
   return utils.get_kernel_if_in_kernel_buf() or kernel_buf_name
 end
 
