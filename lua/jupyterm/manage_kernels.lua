@@ -35,7 +35,9 @@ function manage_kernels.shutdown_kernel(kernel)
     kernel = utils.get_kernel_buf_or_buf()
   end
   if Jupyterm.kernels[kernel].show_win then
-    vim.api.nvim_buf_delete(Jupyterm.kernels[kernel].show_win.bufnr, {force=true})
+    if Jupyterm.kernels[kernel].show_win.bufnr then
+      vim.api.nvim_buf_delete(Jupyterm.kernels[kernel].show_win.bufnr, {force=true})
+    end
   end
   Jupyterm.kernels[kernel] = nil
   vim.fn.JupyShutdown(tostring(kernel))
