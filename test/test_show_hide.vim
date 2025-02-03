@@ -17,5 +17,5 @@ JupyHide 1
 JupyShow 1
 
 " Toggle
-JupyToggle 1
-JupyToggle 1
+JupyOutputBuf 1
+JupyOutputBuf 1
