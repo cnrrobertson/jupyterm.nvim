@@ -125,15 +125,19 @@ class Kernel(object):
             code,oloc = self.queue.get()
             with self.lock:
                 self.outputs[oloc] = self.wait_str
-            if (code.strip()[0] == "?") | (code.strip()[-1] == "?"):
-                iopub = threading.Thread(target=self.handle_helpdoc, args=(code, oloc))
-                iopub.start()
-                iopub.join()
+            if len(code) > 0:
+                if (code.strip()[0] == "?") | (code.strip()[-1] == "?"):
+                    iopub = threading.Thread(target=self.handle_helpdoc, args=(code, oloc))
+                    iopub.start()
+                    iopub.join()
+                else:
+                    iopub = threading.Thread(target=self.listen_to_iopub, args=(oloc,))
+                    iopub.start()
+                    self.kc.execute(code)
+                    iopub.join()
             else:
-                iopub = threading.Thread(target=self.listen_to_iopub, args=(oloc,))
-                iopub.start()
-                self.kc.execute(code)
-                iopub.join()
+                with self.lock:
+                    self.outputs[oloc] = ""
 
     def execute(self, args):
         code = "".join(args)
@@ -241,7 +245,7 @@ class Kernel(object):
                 img_file = Image.open(tmp_file_path)
                 img_file.show()
             else:
-                self.nvim.async_call(self.nvim.out_write, f"Image not displayed: `pillow` not installed in python env.")
+                self.nvim.async_call(self.nvim.out_write, "Image not displayed: `pillow` not installed in python env.")
 
     def handle_ansi_cc(self, entry):
         return re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', entry)
