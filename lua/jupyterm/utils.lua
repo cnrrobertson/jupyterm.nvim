@@ -31,11 +31,12 @@ function utils.get_kernel_buf_or_buf()
 end
 
 function utils.split_by_newlines(input)
-    local result = {}
-    for line in input:gmatch("([^\n]*)\n?") do
-        table.insert(result, line)
-    end
-    return result
+  local result = {}
+  local clean_input = input:gsub("%^@", "\n")
+  for line in clean_input:gmatch("([^\n]*)\n?") do
+    table.insert(result, line)
+  end
+  return result
 end
 
 function utils.strip(s)
