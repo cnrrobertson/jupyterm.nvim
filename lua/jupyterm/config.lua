@@ -1,8 +1,9 @@
 local config = {
   default_kernel = "python3",
   focus_on_show = true,
-  show_on_send = true,
+  show_on_send = false,
   focus_on_send = false,
+  inline_display = true,
   output_refresh = {
     enabled = true,
     delay = 2000,

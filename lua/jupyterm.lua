@@ -27,20 +27,25 @@ function Jupyterm.setup(opts)
 
   -- Setup filetypes, namespaces, highlight groups
   vim.api.nvim_create_augroup("Jupyterm", {clear = true})
+  Jupyterm.ns_virt = vim.api.nvim_create_namespace("jupyterm-virtual")
   Jupyterm.ns_in = vim.api.nvim_create_namespace("jupyterm-in")
   Jupyterm.ns_out = vim.api.nvim_create_namespace("jupyterm-out")
   vim.api.nvim_set_hl(0, "JupytermInText", {link = "@markup.heading.2.markdown", default = true})
   vim.api.nvim_set_hl(0, "JupytermOutText", {link = "Identifier", default = true})
+  -- vim.api.nvim_set_hl(0, "JupytermVirtText", {link = "NonText", default = true})
+  vim.api.nvim_set_hl(0, "JupytermVirtText", {link = "DiffText", default = true})
 
   -- Setup user commands
   vim.api.nvim_create_user_command("JupyStart", function(args) manage_kernels.start_kernel(unpack(args.fargs)) end, {nargs="*"})
   vim.api.nvim_create_user_command("JupyShutdown", function(args) manage_kernels.shutdown_kernel(unpack(args.fargs)) end, {nargs="?"})
   vim.api.nvim_create_user_command("JupyStatus", function(args) manage_kernels.check_kernel_status(unpack(args.fargs)) end, {nargs="?"})
   vim.api.nvim_create_user_command("JupyInterrupt", function(args) manage_kernels.interrupt_kernel(unpack(args.fargs)) end, {nargs="?"})
-  vim.api.nvim_create_user_command("JupyOutputBuf", function(args) display.toggle_outputs(unpack(args.fargs)) end, {nargs="?"})
-  vim.api.nvim_create_user_command("JupyShow", function(args) display.show_outputs(unpack(args.fargs)) end, {nargs="*"})
-  vim.api.nvim_create_user_command("JupyHide", function(args) display.hide_outputs(unpack(args.fargs)) end, {nargs="?"})
+  vim.api.nvim_create_user_command("JupyOutputBuf", function(args) display.toggle_output_buf(unpack(args.fargs)) end, {nargs="?"})
+  vim.api.nvim_create_user_command("JupyOutputText", function(args) display.toggle_virt_text(unpack(args.fargs)) end, {nargs="?"})
   vim.api.nvim_create_user_command("JupyMenu", function(args) menu.toggle_menu() end, {nargs=0})
+  vim.api.nvim_create_user_command("JupyExpand", function(args) display.expand_virt_text() end, {nargs=0})
+  vim.api.nvim_create_user_command("JupyShowText", function(args) display.hide_virt_text() end, {nargs=0})
+  vim.api.nvim_create_user_command("JupyHideText", function(args) display.show_virt_text_at_row() end, {nargs=0})
 
   -- Set configs for output windows/buffers
   vim.api.nvim_create_autocmd("FileType", {
@@ -76,7 +81,7 @@ function Jupyterm.setup(opts)
       vim.keymap.set("n", "<cr>", execute.send_display_block, {desc="Send display block", buffer=0})
       vim.keymap.set("n", "[c", display.jump_display_block_up, {desc="Jump up one display block", buffer=0})
       vim.keymap.set("n", "]c", display.jump_display_block_down, {desc="Jump down one display block", buffer=0})
-      vim.keymap.set("n", "<esc>", function() display.show_outputs(nil, true) end, {desc="Refresh", buffer=0})
+      vim.keymap.set("n", "<esc>", function() display.show_output_buf(nil, true) end, {desc="Refresh", buffer=0})
       vim.keymap.set("n", "<c-c>", manage_kernels.interrupt_kernel, {desc="Interrupt", buffer=0})
       vim.keymap.set("n", "<c-q>", manage_kernels.shutdown_kernel, {desc="Shutdown", buffer=0})
     end
@@ -84,9 +89,13 @@ function Jupyterm.setup(opts)
 
   -- Periodically refresh displayed windows
   if Jupyterm.config.output_refresh.enabled then
-    local refresh_timer = vim.loop.new_timer()
+    local refresh_buf_timer = vim.loop.new_timer()
     local delay = Jupyterm.config.output_refresh.delay
-    refresh_timer:start(delay, delay, vim.schedule_wrap(display.refresh_windows))
+    refresh_buf_timer:start(delay, delay, vim.schedule_wrap(display.refresh_windows))
+
+    local refresh_virt_text_timer = vim.loop.new_timer()
+    local delay = Jupyterm.config.output_refresh.delay
+    refresh_virt_text_timer:start(delay, delay, vim.schedule_wrap(display.refresh_virt_text))
   end
 
   -- Clean up jupyterms on exit (helps session management)

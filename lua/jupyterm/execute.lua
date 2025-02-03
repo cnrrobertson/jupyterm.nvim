@@ -10,7 +10,7 @@ function execute.send(kernel, code)
   -- Update window
   if display.is_showing(tostring(kernel)) or Jupyterm.config.show_on_send then
     local focus = Jupyterm.config.focus_on_send
-    display.show_outputs(tostring(kernel), focus)
+    display.show_output_buf(tostring(kernel), focus)
     display.scroll_output_to_bottom(tostring(kernel))
   end
 
@@ -19,9 +19,7 @@ function execute.send(kernel, code)
 end
 
 function execute.send_display_block(kernel)
-  if kernel == nil then
-    kernel = utils.get_kernel_if_in_kernel_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
   local top_in = display.get_display_block_top(cursor[1], Jupyterm.ns_in)
   local bottom_in = display.get_display_block_bottom(cursor[1], Jupyterm.ns_in)
@@ -68,7 +66,7 @@ function execute.send_display_block(kernel)
   vim.fn.JupyEval(tostring(kernel), unpack(clean_lines))
 
   -- Refresh
-  display.show_outputs(kernel)
+  display.show_output_buf(kernel)
 end
 
 function execute.save_kernel_location(kernel)
@@ -105,6 +103,23 @@ function execute.send_line(kernel)
   local line = vim.api.nvim_buf_get_lines(0,row-1,row,true)
   line = string.gsub(line[1], "^%s+", "")
   execute.send_select(kernel, line)
+
+  -- Store virtual text information
+  local output_length = vim.fn.JupyOutputLen(tostring(kernel))
+  if Jupyterm.kernels[kernel].virt_text == nil then
+    Jupyterm.kernels[kernel].virt_text = {}
+  end
+  Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
+  Jupyterm.kernels[kernel].virt_text[output_length] = {
+    start_row = row-1,
+    end_row = row-1,
+    start_col = nil,
+    end_col = nil,
+    hl = nil
+  }
+  if Jupyterm.config.inline_display then
+    display.show_virt_text(kernel, nil, row-1, row-1)
+  end
 end
 
 function execute.send_lines(kernel,start_line,end_line)
@@ -126,6 +141,23 @@ function execute.send_lines(kernel,start_line,end_line)
   no_empty[#no_empty+1] = ""
   local combined = table.concat(no_empty,"\n")
   execute.send_select(kernel,combined)
+
+  -- Store virtual text information
+  local output_length = vim.fn.JupyOutputLen(tostring(kernel))
+  if Jupyterm.kernels[kernel].virt_text == nil then
+    Jupyterm.kernels[kernel].virt_text = {}
+  end
+  Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
+  Jupyterm.kernels[kernel].virt_text[output_length] = {
+    start_row = start_line-1,
+    end_row = end_line-1,
+    start_col = nil,
+    end_col = nil,
+    hl = nil
+  }
+  if Jupyterm.config.inline_display then
+    display.show_virt_text(kernel, nil, start_line-1, end_line-1)
+  end
 end
 
 function execute.send_selection(kernel,line,start_col,end_col)
@@ -140,6 +172,23 @@ function execute.send_selection(kernel,line,start_col,end_col)
   end
   local text = vim.api.nvim_buf_get_text(0,line-1,sc-1,line-1,ec,{})
   execute.send_select(kernel,table.concat(text))
+
+  -- Store virtual text information
+  local output_length = vim.fn.JupyOutputLen(tostring(kernel))
+  if Jupyterm.kernels[kernel].virt_text == nil then
+    Jupyterm.kernels[kernel].virt_text = {}
+  end
+  Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
+  Jupyterm.kernels[kernel].virt_text[output_length] = {
+    start_row = line-1,
+    end_row = line-1,
+    start_col = start_col-1,
+    end_col = end_col,
+    hl = "CursorLine"
+  }
+  if Jupyterm.config.inline_display then
+    display.show_virt_text(kernel, output_length, line-1, line-1, start_col-1, end_col, "CursorLine")
+  end
 end
 
 function execute.send_visual(kernel)

@@ -13,8 +13,16 @@ function display.refresh_windows()
     if display.is_showing(k) then
       -- Only refresh if not edited
       if not Jupyterm.edited[k] then
-        display.show_outputs(k, false, Jupyterm.kernels[k].full)
+        display.show_output_buf(k, false, Jupyterm.kernels[k].full)
       end
+    end
+  end
+end
+
+function display.refresh_virt_text()
+  for k,_ in pairs(Jupyterm.kernels) do
+    if display.is_showing_virt_text(k) then
+      display.update_all_virt_text(k)
     end
   end
 end
@@ -45,11 +53,28 @@ function display.is_showing(kernel)
   end
 end
 
-function display.toggle_outputs(kernel)
-  -- Use buffer id as default
-  if kernel == nil then
-    kernel = utils.get_kernel_buf_or_buf()
+function display.is_showing_virt_text(kernel)
+  if Jupyterm.kernels[kernel].virt_buf then
+    local extmarks = vim.api.nvim_buf_get_extmarks(
+      Jupyterm.kernels[kernel].virt_buf,
+      Jupyterm.ns_virt,
+      0,
+      -1,
+      {details = true}
+    )
+    if #extmarks > 0 then
+      return true
+    else
+      return false
+    end
+  else
+    return false
   end
+end
+
+function display.toggle_output_buf(kernel)
+  -- Use buffer id as default
+  kernel = kernel or utils.get_kernel_buf_or_buf()
 
   -- Auto start if not started
   if not Jupyterm.kernels[kernel] then
@@ -59,31 +84,27 @@ function display.toggle_outputs(kernel)
   end
 
   if display.is_showing(kernel) then
-    display.hide_outputs(kernel)
+    display.hide_output_buf(kernel)
   else
-    display.show_outputs(kernel)
+    display.show_output_buf(kernel)
   end
 end
 
-function display.hide_outputs(kernel)
+function display.hide_output_buf(kernel)
   -- Use buffer id as default
-  if kernel == nil then
-    kernel = utils.get_kernel_buf_or_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
 
   if Jupyterm.kernels[kernel] then
     Jupyterm.kernels[kernel].show_win:hide()
   end
 end
 
-function display.show_outputs(kernel, focus, full)
+function display.show_output_buf(kernel, focus, full)
   if focus == nil then
     focus = Jupyterm.config.focus_on_show
   end
   -- Refresh current window if output window
-  if kernel == nil then
-    kernel = utils.get_kernel_buf_or_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
 
   -- Track previous location if showing
   local kernel_win = nil
@@ -256,6 +277,189 @@ function display.show_outputs(kernel, focus, full)
   Jupyterm.edited[kernel] = nil
 end
 
+function display.toggle_virt_text(kernel)
+  -- Use buffer id as default
+  kernel = kernel or utils.get_kernel_buf_or_buf()
+
+  -- Auto start if not started
+  if not Jupyterm.kernels[kernel] then
+    local ft = vim.bo.filetype
+    local kernel_name = Jupyterm.lang_to_kernel[ft] or Jupyterm.lang_to_kernel["python"]
+    manage_kernels.start_kernel(nil, nil, kernel_name)
+  end
+
+  if display.is_showing_virt_text(kernel) then
+    display.hide_all_virt_text(kernel)
+  else
+    display.show_all_virt_text(kernel)
+  end
+end
+
+function display.show_all_virt_text(kernel)
+  for oloc=1,vim.fn.JupyOutputLen(tostring(kernel)) do
+    local vt = Jupyterm.kernels[kernel].virt_text[oloc]
+    display.show_virt_text(kernel, oloc, vt.start_row, vt.end_row, vt.start_col, vt.end_col, vt.hl)
+  end
+end
+
+function display.hide_all_virt_text(kernel)
+  vim.api.nvim_buf_clear_namespace(
+    Jupyterm.kernels[kernel].virt_buf,
+    Jupyterm.ns_virt,
+    0,
+    -1
+  )
+end
+
+function display.update_all_virt_text(kernel)
+  local buf = Jupyterm.kernels[kernel].virt_buf
+  local olocs = Jupyterm.kernels[kernel].virt_olocs
+  local extmarks = vim.api.nvim_buf_get_extmarks(buf, Jupyterm.ns_virt, 0, -1, {details = true})
+  local outputs = vim.fn.JupyOutput(tostring(kernel))[2]
+  for _,e in ipairs(extmarks) do
+    local oloc = olocs[e[1]]
+    local formatted_output = display.split_virt_text(outputs[oloc])
+    if e[#e].virt_lines then
+      vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], {
+        id = e[1],
+        end_row = e[#e].end_row,
+        end_col = e[#e].end_col,
+        virt_lines = formatted_output,
+        sign_text = e[#e].sign_text,
+        sign_hl_group = "JupytermOutText",
+        hl_group = e[#e].hl_group,
+      })
+    else
+      vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], {
+        id = e[1],
+        sign_text = e[#e].sign_text,
+        sign_hl_group = "JupytermOutText",
+        hl_group = e[#e].hl_group,
+      })
+    end
+  end
+end
+
+function display.show_virt_text(kernel, output_num, start_row, end_row, start_col, end_col, hl)
+  -- Delete previous extmarks in range
+  display.hide_virt_text(kernel, start_row, end_row)
+
+  -- Insert new extmarks
+  local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
+  local output = kernel_lines[2]
+  local end_line = vim.api.nvim_buf_get_lines(0, end_row, end_row+1, false)[1]
+  local line_len = string.len(end_line)
+  output_num = output_num or #output
+
+  for row=start_row,end_row do
+    local virt_id = nil
+    if row == end_row then
+      local formatted_output = display.split_virt_text(output[output_num])
+      start_col = start_col or 0
+      end_col = end_col or line_len
+      virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, start_col, {
+        end_col = end_col,
+        virt_lines = formatted_output,
+        sign_text = string.sub(tostring(output_num), -2, -1),
+        sign_hl_group = "JupytermOutText",
+        hl_group = hl,
+      })
+    else
+      virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, 0, {
+        sign_text = string.sub(tostring(output_num), -2, -1),
+        sign_hl_group = "JupytermOutText",
+        hl_group = hl,
+      })
+    end
+    if Jupyterm.kernels[kernel].virt_olocs == nil then
+      Jupyterm.kernels[kernel].virt_olocs = {}
+    end
+    Jupyterm.kernels[kernel].virt_olocs[virt_id] = output_num
+  end
+  Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
+end
+
+function display.hide_virt_text(kernel, start_row, end_row)
+  start_row = start_row or vim.api.nvim_win_get_cursor(0)[1] - 1
+  end_row = end_row or start_row
+
+  -- Delete extmarks in range
+  local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, {start_row,0}, {end_row,0}, {details = true})
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {})
+  for _,oe in ipairs(overlap_extmarks) do
+    if Jupyterm.kernels[kernel].virt_olocs == nil then
+      Jupyterm.kernels[kernel].virt_olocs = {}
+    end
+    local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
+    for _,e in ipairs(extmarks) do
+      if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
+        vim.api.nvim_buf_del_extmark(0, Jupyterm.ns_virt, e[1])
+        Jupyterm.kernels[kernel].virt_olocs[e[1]] = nil
+      end
+    end
+  end
+end
+
+function display.show_virt_text_at_row(kernel, row)
+  row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
+
+  for oloc=vim.fn.JupyOutputLen(tostring(kernel)),1,-1 do
+    local vt = Jupyterm.kernels[kernel].virt_text[oloc]
+    if (row >= vt.start_row) and (row <= vt.end_row) then
+      display.show_virt_text(kernel, oloc, vt.start_row, vt.end_row, vt.start_col, vt.end_col, vt.hl)
+      return
+    end
+  end
+end
+
+function display.split_virt_text(text)
+  local split_text = utils.split_by_newlines(text)
+  local result = {}
+  for _,st in ipairs(split_text) do
+    table.insert(result, {{st, "JupytermVirtText"}})
+  end
+  return result
+end
+
+function display.expand_virt_text(kernel, row)
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()]
+  row = row or vim.api.nvim_win_get_cursor(0)[1]-1
+  local buf = Jupyterm.kernels[kernel].virt_buf
+  local extmark = vim.api.nvim_buf_get_extmarks(buf, Jupyterm.ns_virt, {row,0}, {row,-1}, {details = true})[1]
+  local outputs = vim.fn.JupyOutput(tostring(kernel))[2]
+  local text = extmark[#extmark].virt_lines
+  local split_text = {}
+  for _,t in ipairs(text) do
+    table.insert(split_text, t[1])
+  end
+  local popup = Popup({
+    position = {
+      row = 0,
+      col = 0,
+    },
+    anchor = "NW",
+    relative = "cursor",
+    size = {
+      width = "100%",
+      height = "25%",
+    },
+    enter = true,
+    focusable = true,
+    buf_options = {
+      buftype = "nofile",
+      bufhidden = "hide",
+      swapfile = false,
+      filetype = "jupyterm-python3"
+    },
+    border = "solid"
+  })
+  popup:mount()
+  popup:on("BufLeave", function()
+    popup:unmount()
+  end, {once = true})
+  vim.api.nvim_buf_set_lines(popup.bufnr, 0, 1, false, split_text)
+end
+
 function display.navigate_to_output_end(kernel)
   local winid = Jupyterm.kernels[kernel].show_win.winid
   local buf_len = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
@@ -272,9 +476,7 @@ function display.scroll_output_to_bottom(kernel)
 end
 
 function display.jump_display_block_up(kernel)
-  if kernel == nil then
-    kernel = utils.get_kernel_if_in_kernel_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
   local top_in = display.get_display_block_top(cursor[1], Jupyterm.ns_in)
   local top_out = display.get_display_block_top(cursor[1], Jupyterm.ns_out)
@@ -297,9 +499,7 @@ function display.jump_display_block_up(kernel)
 end
 
 function display.jump_display_block_down(kernel)
-  if kernel == nil then
-    kernel = utils.get_kernel_if_in_kernel_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
   local bottom_in = display.get_display_block_bottom(cursor[1], Jupyterm.ns_in)
   local bottom_out = display.get_display_block_bottom(cursor[1], Jupyterm.ns_out)

@@ -167,7 +167,7 @@ end
 function menu.submit(item)
   if item then
     local was_shown = display.is_showing(item.kernel)
-    display.toggle_outputs(item.kernel)
+    display.toggle_output_buf(item.kernel)
     if was_shown then menu.show_menu() end
   end
 end
@@ -226,7 +226,7 @@ function menu.toggle_terminal()
   if node then
     local was_shown = display.is_showing(node.kernel)
     menu.toggle_menu()
-    display.toggle_outputs(node.kernel)
+    display.toggle_output_buf(node.kernel)
     menu.toggle_menu()
   end
 end

@@ -62,6 +62,16 @@ class Jupyterm(object):
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
             return [], []
 
+    @pynvim.function("JupyOutputLen", sync=True)
+    def get_output_len(self, args):
+        kernel_name = args[0]
+        if self._check_kernel(kernel_name):
+            kernel = self.kernels[kernel_name]
+            return kernel.get_output_len()
+        else:
+            self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
+            return [], []
+
     @pynvim.function("JupyInterrupt", sync=False)
     def interrupt(self, args):
         kernel_name = args[0]
@@ -256,6 +266,10 @@ class Kernel(object):
     def get_input_output(self):
         with self.lock:
             return self.inputs, self.outputs
+
+    def get_output_len(self):
+        with self.lock:
+            return len(self.outputs)
 
     def get_status(self):
         with self.lock:

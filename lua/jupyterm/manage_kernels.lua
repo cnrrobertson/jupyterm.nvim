@@ -31,9 +31,7 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
 end
 
 function manage_kernels.shutdown_kernel(kernel)
-  if kernel == nil then
-    kernel = utils.get_kernel_buf_or_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
   if Jupyterm.kernels[kernel].show_win then
     if Jupyterm.kernels[kernel].show_win.bufnr then
       vim.api.nvim_buf_delete(Jupyterm.kernels[kernel].show_win.bufnr, {force=true})
@@ -44,16 +42,12 @@ function manage_kernels.shutdown_kernel(kernel)
 end
 
 function manage_kernels.interrupt_kernel(kernel)
-  if kernel == nil then
-    kernel = utils.get_kernel_buf_or_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
   vim.fn.JupyInterrupt(tostring(kernel))
 end
 
 function manage_kernels.check_kernel_status(kernel)
-  if kernel == nil then
-    kernel = utils.get_kernel_buf_or_buf()
-  end
+  kernel = kernel or utils.get_kernel_buf_or_buf()
   vim.fn.JupyStatus(tostring(kernel))
 end
 

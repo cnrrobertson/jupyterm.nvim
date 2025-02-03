@@ -10,5 +10,4 @@ JupyExec 1 z = x + y
 JupyExec 1 print(z)
 JupyExec 1 z
 JupyExec 1 x = 10; y = 20; print(x + y)
-JupyShow 1
-
+JupyOutputBuf 1
