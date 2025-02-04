@@ -32,20 +32,121 @@ function Jupyterm.setup(opts)
   Jupyterm.ns_out = vim.api.nvim_create_namespace("jupyterm-out")
   vim.api.nvim_set_hl(0, "JupytermInText", {link = "@markup.heading.2.markdown", default = true})
   vim.api.nvim_set_hl(0, "JupytermOutText", {link = "Identifier", default = true})
-  -- vim.api.nvim_set_hl(0, "JupytermVirtText", {link = "NonText", default = true})
   vim.api.nvim_set_hl(0, "JupytermVirtText", {link = "DiffText", default = true})
 
   -- Setup user commands
-  vim.api.nvim_create_user_command("JupyStart", function(args) manage_kernels.start_kernel(unpack(args.fargs)) end, {nargs="*"})
-  vim.api.nvim_create_user_command("JupyShutdown", function(args) manage_kernels.shutdown_kernel(unpack(args.fargs)) end, {nargs="?"})
-  vim.api.nvim_create_user_command("JupyStatus", function(args) manage_kernels.check_kernel_status(unpack(args.fargs)) end, {nargs="?"})
-  vim.api.nvim_create_user_command("JupyInterrupt", function(args) manage_kernels.interrupt_kernel(unpack(args.fargs)) end, {nargs="?"})
-  vim.api.nvim_create_user_command("JupyOutputBuf", function(args) display.toggle_output_buf(unpack(args.fargs)) end, {nargs="?"})
-  vim.api.nvim_create_user_command("JupyOutputText", function(args) display.toggle_virt_text(unpack(args.fargs)) end, {nargs="?"})
-  vim.api.nvim_create_user_command("JupyMenu", function(args) menu.toggle_menu() end, {nargs=0})
-  vim.api.nvim_create_user_command("JupyExpand", function(args) display.expand_virt_text() end, {nargs=0})
-  vim.api.nvim_create_user_command("JupyShowText", function(args) display.hide_virt_text() end, {nargs=0})
-  vim.api.nvim_create_user_command("JupyHideText", function(args) display.show_virt_text_at_row() end, {nargs=0})
+  local function completion(args)
+    return function(subcmd_arg_lead)
+      local start_args = {
+        "kernel",
+        "cwd",
+        "kernel_name",
+      }
+      return vim.iter(start_args)
+        :filter(function(install_arg)
+            return install_arg:find(subcmd_arg_lead) ~= nil
+        end)
+        :totable()
+    end
+  end
+
+  local subcommand_tbl = {
+    start = {
+      impl = function(args, opts)
+        manage_kernels.start_kernel(unpack(args))
+      end,
+      complete = {"kernel", "cwd", "kernel_name"}
+    },
+    shutdown = {
+      impl = function(args, opts)
+        manage_kernels.shutdown_kernel(unpack(args))
+      end,
+      complete = {"kernel"}
+    },
+    status = {
+      impl = function(args, opts)
+        manage_kernels.check_kernel_status(unpack(args))
+      end,
+      complete = {"kernel"}
+    },
+    interrupt = {
+      impl = function(args, opts)
+        manage_kernels.interrupt_kernel(unpack(args))
+      end,
+      complete = {"kernel"}
+    },
+    execute = {
+      impl = function(args, opts)
+        vim.fn.JupyEval(unpack(args))
+      end,
+      complete = {"kernel", "code"}
+    },
+    menu = {
+      impl = function(args, opts)
+        menu.toggle_menu()
+      end,
+    },
+    toggle_term = {
+      impl = function(args, opts)
+        display.toggle_output_buf(unpack(args))
+      end,
+      complete = {"kernel"}
+    },
+    toggle_text = {
+      impl = function(args, opts)
+        display.toggle_virt_text(unpack(args))
+      end,
+      complete = {"kernel"}
+    },
+    hide_text = {
+      impl = function(args, opts)
+        display.hide_virt_text(unpack(args))
+      end,
+      complete = {"kernel", "start_row", "end_row"}
+    },
+    reveal_text = {
+      impl = function(args, opts)
+        display.show_virt_text_at_row(unpack(args))
+      end,
+      complete = {"kernel", "row"}
+    },
+  }
+
+  local function jupyterm(opts)
+    local fargs = opts.fargs
+    local subcommand_key = fargs[1]
+    local args = #fargs > 1 and vim.list_slice(fargs, 2, #fargs) or {}
+    local subcommand = subcommand_tbl[subcommand_key]
+    if not subcommand then
+      vim.notify("Jupyter: Unknown command: " .. subcommand_key, vim.log.levels.ERROR)
+      return
+    end
+    subcommand.impl(args, opts)
+  end
+
+  vim.api.nvim_create_user_command("Jupyter", jupyterm, {
+    nargs = "+",
+    desc = "Jupyterm: start, destroy, send to, and display info from Jupyter kernels",
+    complete = function(arg_lead, cmdline, _)
+      local subcmd_key, subcmd_arg_lead = cmdline:match("^['<,'>]*Jupyter[!]*%s(%S+)%s(.*)$")
+      if subcmd_key
+        and subcmd_arg_lead
+        and subcommand_tbl[subcmd_key]
+        and subcommand_tbl[subcmd_key].complete
+      then
+        return completion(subcommand_tbl[subcmd_key].complete)(subcmd_arg_lead)
+      end
+      if cmdline:match("^['<,'>]*Jupyter[!]*%s+%w*$") then
+        -- Filter subcommands that match
+        local subcommand_keys = vim.tbl_keys(subcommand_tbl)
+        return vim.iter(subcommand_keys)
+          :filter(function(key)
+            return key:find(arg_lead) ~= nil
+          end)
+          :totable()
+      end
+    end,
+})
 
   -- Set configs for output windows/buffers
   vim.api.nvim_create_autocmd("FileType", {

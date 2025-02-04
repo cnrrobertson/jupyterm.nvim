@@ -48,10 +48,6 @@ class Jupyterm(object):
         else:
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
 
-    @pynvim.command("JupyExec", nargs="*", sync=False)
-    def executec(self, args):
-        self.executef(args)
-
     @pynvim.function("JupyOutput", sync=True)
     def get_input_output(self, args):
         kernel_name = args[0]

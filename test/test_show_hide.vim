@@ -1,21 +1,16 @@
-set runtimepath+=~/Software/jupyterm.nvim
 silent UpdateRemotePlugins
 
 lua require("jupyterm")
 
-JupyStart 1
-JupyExec 1 x = 20
-JupyExec 1 y = 10
-JupyExec 1 z = x + y
-JupyExec 1 print(z)
-JupyExec 1 z
-JupyExec 1 x = 10; y = 20; print(x + y)
-JupyOutputBuf 1
-
-" Hide then show
-JupyOutputBuf 1
-JupyOutputBuf 1
+Jupyter start 1
+Jupyter execute 1 x = 20
+Jupyter execute 1 y = 10
+Jupyter execute 1 z = x + y
+Jupyter execute 1 print(z)
+Jupyter execute 1 z
+Jupyter execute 1 x = 10; y = 20; print(x + y)
+Jupyter toggle_term 1
 
 " Toggle
-JupyOutputBuf 1
-JupyOutputBuf 1
+Jupyter toggle_term 1
+Jupyter toggle_term 1
