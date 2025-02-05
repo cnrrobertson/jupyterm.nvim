@@ -15,7 +15,7 @@ function execute.send(kernel, code)
   end
 
   -- Reset edited status
-  Jupyterm.edited[kernel] = nil
+  Jupyterm.kernels[kernel].edited = nil
 end
 
 function execute.send_display_block(kernel)

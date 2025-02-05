@@ -12,7 +12,7 @@ function display.refresh_windows()
   for k,_ in pairs(Jupyterm.kernels) do
     if display.is_showing(k) then
       -- Only refresh if not edited
-      if not Jupyterm.edited[k] then
+      if not Jupyterm.kernels[k].edited then
         display.show_output_buf(k, false, Jupyterm.kernels[k].full)
       end
     end
@@ -274,7 +274,7 @@ function display.show_output_buf(kernel, focus, full)
   end
 
   -- Reset edited status
-  Jupyterm.edited[kernel] = nil
+  Jupyterm.kernels[kernel].edited = nil
 end
 
 function display.toggle_virt_text(kernel)

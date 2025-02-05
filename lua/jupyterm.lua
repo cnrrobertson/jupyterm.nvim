@@ -5,7 +5,7 @@ local manage_kernels = require("jupyterm.manage_kernels")
 local execute = require("jupyterm.execute")
 local menu = require("jupyterm.menu")
 
-local Jupyterm = {kernels={}, send_memory={}, edited={}, jupystring={}}
+local Jupyterm = {kernels={}, send_memory={}, jupystring={}}
 
 Jupyterm.kernel_to_lang = {
   python3="python",
@@ -251,7 +251,7 @@ function Jupyterm.setup(opts)
       if filename:match("jupyterm:*") then
         local kernel = utils.get_kernel_if_in_kernel_buf()
         if kernel then
-          Jupyterm.edited[kernel] = true
+          Jupyterm.kernels[kernel].edited = true
         end
       end
     end
