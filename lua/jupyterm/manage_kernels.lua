@@ -2,18 +2,24 @@ local utils = require("jupyterm.utils")
 
 local manage_kernels = {}
 
+---Selects a kernel from the available kernels.
+---@return string
 function manage_kernels.select_kernel()
   local kernel_keys = vim.tbl_keys(Jupyterm.kernels)
-  local return_val = 1
+  local return_val = "1"
   vim.ui.select(kernel_keys, {
     prompt = "Please select an option:",
   }, function(choice)
-      return_val = choice
+      return_val = tostring(choice)
     end
   )
   return return_val
 end
 
+---Starts a Jupyter kernel.
+---@param kernel string?
+---@param cwd string?
+---@param kernel_name string?
 function manage_kernels.start_kernel(kernel, cwd, kernel_name)
   if kernel == nil then
     local buf = vim.api.nvim_get_current_buf()
@@ -30,6 +36,8 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
   end
 end
 
+---Shuts down a Jupyter kernel.
+---@param kernel string?
 function manage_kernels.shutdown_kernel(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()
   if Jupyterm.kernels[kernel].show_win then
@@ -41,11 +49,15 @@ function manage_kernels.shutdown_kernel(kernel)
   vim.fn.JupyShutdown(tostring(kernel))
 end
 
+---Interrupts a Jupyter kernel.
+---@param kernel string?
 function manage_kernels.interrupt_kernel(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()
   vim.fn.JupyInterrupt(tostring(kernel))
 end
 
+---Checks the status of a Jupyter kernel.
+---@param kernel string?
 function manage_kernels.check_kernel_status(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()
   vim.fn.JupyStatus(tostring(kernel))

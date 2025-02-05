@@ -1,9 +1,17 @@
 local utils = {}
 
+---Checks if the buffer is a jupyterm buffer
+---@param buf integer
+---@return boolean
 function utils.is_jupyterm(buf)
-    return string.find(vim.api.nvim_get_option_value("filetype", {buf=buf}), "jupyterm") ~= nil
+  local ft = vim.api.nvim_get_option_value("filetype", {buf=buf})
+  local jupy_name = string.find(ft, "jupyterm")
+  return jupy_name ~= nil
 end
 
+---Finds the kernel associated with the given buffer
+---@param buf integer
+---@return string?
 function utils.find_kernel(buf)
   for k,v in pairs(Jupyterm.kernels) do
     if v.show_buf and v.show_buf == buf then
@@ -12,12 +20,16 @@ function utils.find_kernel(buf)
   end
 end
 
+---Gets the kernel if the current buffer is a Jupyter output buffer
+---@return string?
 function utils.get_kernel_if_in_kernel_buf()
   if utils.is_jupyterm(vim.api.nvim_get_current_buf()) then
     return utils.find_kernel(vim.api.nvim_get_current_buf())
   end
 end
 
+---Generates a kernel name based on the current buffer.
+---@return string
 function utils.make_kernel_name()
   local buf = vim.api.nvim_get_current_buf()
   local bufname = vim.api.nvim_buf_get_name(buf)
@@ -25,11 +37,16 @@ function utils.make_kernel_name()
   return "buf:"..buf..":"..bufname
 end
 
+---Gets kernel buffer name, or creates one if it doesn't exist
+---@return string
 function utils.get_kernel_buf_or_buf()
-  kernel_buf_name = utils.make_kernel_name()
+  local kernel_buf_name = utils.make_kernel_name()
   return utils.get_kernel_if_in_kernel_buf() or kernel_buf_name
 end
 
+---Splits a string by newlines
+---@param input string
+---@return string[]
 function utils.split_by_newlines(input)
   local result = {}
   local clean_input = input:gsub("%^@", "\n")
@@ -39,11 +56,17 @@ function utils.split_by_newlines(input)
   return result
 end
 
+---Strips leading and trailing whitespace from a string.
+---@param s string
+---@return string
 function utils.strip(s)
     return s:match("^%s*(.-)%s*$")
 end
 
-function utils.dict_length(t)
+---Gets length of a table with keywords
+---@param t table
+---@return integer
+function utils.table_length(t)
   local length = 0
   for _,_ in pairs(t) do
     length = length + 1
@@ -51,8 +74,11 @@ function utils.dict_length(t)
   return length
 end
 
+---Renames a buffer and handles potential duplicate terminal buffer issues
+---@param bufnr number
+---@param name string
 function utils.rename_buffer(bufnr, name)
-  vim.api.nvim_buf_set_name(bufnr,name)
+  vim.api.nvim_buf_set_name(bufnr, name)
   -- Renaming causes duplication of terminal buffer -> delete old buffer
   -- https://github.com/neovim/neovim/issues/20349
   local alt = vim.api.nvim_buf_call(bufnr, function()

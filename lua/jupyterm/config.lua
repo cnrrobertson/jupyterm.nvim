@@ -1,3 +1,11 @@
+---@class config
+---@field default_kernel string
+---@field focus_on_show boolean
+---@field show_on_send boolean
+---@field focus_on_send boolean
+---@field inline_display boolean
+---@field output_refresh table
+---@field ui table
 local config = {
   default_kernel = "python3",
   focus_on_show = true,
@@ -36,5 +44,6 @@ local config = {
     }
   }
 }
+
 
 return config

@@ -1,9 +1,9 @@
+---@module nui.layout
 local Layout = require("nui.layout")
 local Text = require("nui.text")
 local Line = require("nui.line")
 local Menu = require("nui.menu")
 local Popup = require("nui.popup")
-local Input = require("nui.input")
 local event = require("nui.utils.autocmd").event
 
 local utils = require("jupyterm.utils")
@@ -23,6 +23,11 @@ function menu.toggle_menu()
   end
 end
 
+---Creates a menu with the given lines, keys, and on_submit function.
+---@param lines string[] A table of lines to display in the menu.
+---@param keys table<string, string> A table of key mappings for the menu.
+---@param on_submit fun(table): nil A function to call when an item is submitted.
+---@return Menu A nui.Menu object.
 function menu.create_menu(lines, keys, on_submit)
   local kernel_menu = Menu({
       relative = "editor",
@@ -50,6 +55,10 @@ function menu.create_menu(lines, keys, on_submit)
   return kernel_menu
 end
 
+---Creates a help menu with the given keys.
+---@param keys table<string, string> A table of key mappings for the menu.
+---@return Popup A nui.Popup object for help, actions, and hints.
+---@overload fun(keys: table<string, string>): Popup,Popup,Popup
 function menu.create_help(keys)
   local popup_opts = {
     position = 0,
@@ -111,6 +120,8 @@ function menu.create_help(keys)
   return help_menu, action_menu, hint_menu
 end
 
+---Shows the Jupyter menu.
+---@param on_submit (fun(table): nil)? The function to call when an item is submitted.
 function menu.show_menu(on_submit)
   vim.schedule(function() vim.cmd[[stopinsert]] end)
   vim.cmd[[redraw]]
@@ -137,18 +148,24 @@ function menu.show_menu(on_submit)
   menu.menu_layout = menu_layout
 end
 
+---Sets the mappings for the given menu.
+---@param kernel_menu Menu The nui.Menu object.
+---@param keys table<string, string> A table of key mappings.
 function menu.set_mappings(kernel_menu, keys)
-  for _,k in ipairs(keys.new) do
+  for _,k in pairs(keys.new) do
     kernel_menu:map("n", k, menu.new_terminal, {noremap=true})
   end
-  for _,k in ipairs(keys.destroy) do
+  for _,k in pairs(keys.destroy) do
     kernel_menu:map("n", k, menu.destroy_terminal, {noremap=true})
   end
-  for _,k in ipairs(keys.toggle) do
+  for _,k in pairs(keys.toggle) do
     kernel_menu:map("n", k, menu.toggle_terminal, {noremap=true})
   end
 end
 
+---Sets the autocommands for the given menu.
+---@param kernel_menu Menu The nui.Menu object.
+---@param menu_layout Layout The nui.Layout object.
 function menu.set_autocmds(kernel_menu,menu_layout)
   -- Close terminal
   kernel_menu:on({event.BufLeave}, function()
@@ -156,6 +173,9 @@ function menu.set_autocmds(kernel_menu,menu_layout)
   end, {})
 end
 
+---Joins the given keys with commas.
+---@param keys string[] A table of keys.
+---@return string # A string of keys joined by commas.
 function menu.join_keys(keys)
   if keys then
     return table.concat(keys, ", ")
@@ -164,6 +184,8 @@ function menu.join_keys(keys)
   end
 end
 
+---Submits the given item.
+---@param item table<field, string> The item to submit.
 function menu.submit(item)
   if item then
     local was_shown = display.is_showing(item.kernel)
@@ -172,18 +194,20 @@ function menu.submit(item)
   end
 end
 
+---Adds kernels to the given lines.
+---@param lines string[] The table of lines to add kernels to.
 function menu.add_kernels(lines)
   local kernels = Jupyterm.kernels
-  if utils.dict_length(kernels) > 0 then
+  if utils.table_length(kernels) > 0 then
     for n,t in pairs(kernels) do
       local buf_name = n
       local pre_str = ""
       if display.is_showing(n) then
         pre_str = "* "
       end
-      local display = pre_str..buf_name
+      local display_text = pre_str..buf_name
       local menu_item = Menu.item(
-        display,{kernel=n}
+        display_text,{kernel=n}
       )
       if menu.in_lines(lines, menu_item) == false then
         lines[#lines+1] = menu_item
@@ -192,24 +216,18 @@ function menu.add_kernels(lines)
   end
 end
 
-function menu.join_keys(keys)
-  if keys then
-    return table.concat(keys, ", ")
-  else
-    return ""
-  end
-end
-
+---Creates a new terminal.
 function menu.new_terminal()
   local free_num = 1
   while Jupyterm.kernels[free_num] do
     free_num = free_num + 1
   end
-  manage_kernels.start_kernel(free_num)
+  manage_kernels.start_kernel(tostring(free_num))
   menu.toggle_menu()
   menu.toggle_menu()
 end
 
+---Destroys the selected terminal.
 function menu.destroy_terminal()
   local tree = menu.kernel_menu.tree
   local node = tree:get_node()
@@ -220,17 +238,21 @@ function menu.destroy_terminal()
   end
 end
 
+---Toggles the visibility of the selected terminal.
 function menu.toggle_terminal()
   local tree = menu.kernel_menu.tree
   local node = tree:get_node()
   if node then
-    local was_shown = display.is_showing(node.kernel)
     menu.toggle_menu()
     display.toggle_output_buf(node.kernel)
     menu.toggle_menu()
   end
 end
 
+---Checks if the given item is in the given lines.
+---@param lines string[] The table of lines to check.
+---@param item table<string, string> The item to check.
+---@return boolean in_lines True if the item is in the lines, false otherwise.
 function menu.in_lines(lines, item)
   local in_lines = false
   for _,line in ipairs(lines) do

@@ -19,8 +19,10 @@ Jupyterm.lang_to_kernel = {
   julia="ijulia",
 }
 
+---Update config, setup namespaces, highlight groups, user commands, autocmds, and timers
+---@param opts table of options to override the default config
 function Jupyterm.setup(opts)
-  opts = nil or {}
+  opts = opts or {}
 
   -- Update config
   Jupyterm.config = vim.tbl_deep_extend("force", config, opts)
@@ -34,7 +36,9 @@ function Jupyterm.setup(opts)
   vim.api.nvim_set_hl(0, "JupytermOutText", {link = "Identifier", default = true})
   vim.api.nvim_set_hl(0, "JupytermVirtText", {link = "DiffText", default = true})
 
-  -- Setup user commands
+  ---Setup user commands
+  ---@param args table of strings to complete
+  ---@return function that takes a string and returns a table of strings
   local function completion(args)
     return function(subcmd_arg_lead)
       local start_args = {
@@ -49,7 +53,6 @@ function Jupyterm.setup(opts)
         :totable()
     end
   end
-
   local subcommand_tbl = {
     start = {
       impl = function(args, opts)
@@ -112,6 +115,7 @@ function Jupyterm.setup(opts)
     },
   }
 
+  ---@param opts table of options including fargs
   local function jupyterm(opts)
     local fargs = opts.fargs
     local subcommand_key = fargs[1]
@@ -123,7 +127,6 @@ function Jupyterm.setup(opts)
     end
     subcommand.impl(args, opts)
   end
-
   vim.api.nvim_create_user_command("Jupyter", jupyterm, {
     nargs = "+",
     desc = "Jupyterm: start, destroy, send to, and display info from Jupyter kernels",
@@ -146,14 +149,13 @@ function Jupyterm.setup(opts)
           :totable()
       end
     end,
-})
-
+  })
   -- Set configs for output windows/buffers
   vim.api.nvim_create_autocmd("FileType", {
     group = "Jupyterm",
     pattern = "jupyterm-*",
     callback = function()
-      -- Identify language
+      -- Identify language and set syntax, keymaps
       local buf_name = vim.api.nvim_buf_get_name(0)
       local language = "python"
       local kernel_name = "python3"
@@ -163,7 +165,6 @@ function Jupyterm.setup(opts)
           kernel_name = k
         end
       end
-
       local status, _ = pcall(require, 'nvim-treesitter')
       if status then
         vim.api.nvim_set_option_value("syntax", "on", {buf = 0})
@@ -187,23 +188,21 @@ function Jupyterm.setup(opts)
       vim.keymap.set("n", "<c-q>", manage_kernels.shutdown_kernel, {desc="Shutdown", buffer=0})
     end
   })
-
   -- Periodically refresh displayed windows
   if Jupyterm.config.output_refresh.enabled then
     local refresh_buf_timer = vim.loop.new_timer()
     local delay = Jupyterm.config.output_refresh.delay
     refresh_buf_timer:start(delay, delay, vim.schedule_wrap(display.refresh_windows))
-
     local refresh_virt_text_timer = vim.loop.new_timer()
     local delay = Jupyterm.config.output_refresh.delay
     refresh_virt_text_timer:start(delay, delay, vim.schedule_wrap(display.refresh_virt_text))
   end
-
   -- Clean up jupyterms on exit (helps session management)
   vim.api.nvim_create_autocmd({"ExitPre"}, {
     group = "Jupyterm",
     pattern="*",
     callback = function()
+      -- Close all open jupyterm windows
       for k,_ in pairs(Jupyterm.kernels) do
         if display.is_showing(k) then
           local kernel_win = Jupyterm.kernels[k].show_win.winid
@@ -212,7 +211,6 @@ function Jupyterm.setup(opts)
       end
     end
   })
-
   -- Only allow output buffers in jupyterm windows
   local major = vim.version().major
   local minor = vim.version().minor
@@ -225,6 +223,7 @@ function Jupyterm.setup(opts)
       end
     })
   else
+    -- Handle buffer switching for versions below 0.9
     vim.api.nvim_create_autocmd({"BufWinEnter"}, {
       group = "Jupyterm",
       pattern = "*",
@@ -244,10 +243,9 @@ function Jupyterm.setup(opts)
     group = "Jupyterm",
     pattern = {"n:[vViRsS\x16\x13]*", "n:no*"},
     callback = function()
+      -- Mark kernel as edited if output buffer is modified
       local bufnr = vim.api.nvim_get_current_buf()
       local filename = vim.api.nvim_buf_get_name(bufnr)
-
-      -- Check if the filename matches the desired pattern
       if filename:match("jupyterm:*") then
         local kernel = utils.get_kernel_if_in_kernel_buf()
         if kernel then
