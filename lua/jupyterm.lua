@@ -292,7 +292,7 @@ function Jupyterm.setup(opts)
     callback = function()
       -- Close all open jupyterm windows
       for k,_ in pairs(Jupyterm.kernels) do
-        if display.is_showing(k) then
+        if display.is_repl_showing(k) then
           local kernel_win = Jupyterm.kernels[k].show_win.winid
           vim.api.nvim_win_close(kernel_win, true)
         end
