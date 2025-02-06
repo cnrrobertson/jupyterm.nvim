@@ -89,4 +89,26 @@ function utils.rename_buffer(bufnr, name)
   end
 end
 
+--- Gets the namespace extmark above the line.
+---@param cur_line integer current line
+---@param ns_id integer namespace id
+---@return table? extmark or nil
+function utils.get_extmark_above(cur_line, ns_id)
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {0,0}, {cur_line-1,0}, {details=true, overlap=true})
+  if #extmarks > 0 then
+    return extmarks[#extmarks]
+  end
+end
+
+--- Gets the namespace extmark below the line
+---@param cur_line integer current line
+---@param ns_id integer namespace id
+---@return table? extmark or nil
+function utils.get_extmark_below(cur_line, ns_id)
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {cur_line,0}, {-1,0}, {details=true, overlap=true})
+  if #extmarks > 0 then
+    return extmarks[1]
+  end
+end
+
 return utils

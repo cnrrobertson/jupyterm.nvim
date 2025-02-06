@@ -174,4 +174,3 @@ You can override these settings by calling `require("jupyterm").setup({})` with 
 ## TODO
 - [ ] Add ability to fold input or output cells in repl
 - [ ] Find a way to disable/change highlighting in output cells
-- [ ] Fix jumping between inputs in repl

@@ -31,30 +31,6 @@ function display.refresh_virt_text()
   end
 end
 
---- Gets the top display block.
----@param cur_line integer current line
----@param ns_id integer namespace id
----@return table? extmark or nil
----@private
-function display.get_display_block_top(cur_line, ns_id)
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {0,0}, {cur_line-1,0}, {details=true, overlap=true})
-  if #extmarks > 0 then
-    return extmarks[#extmarks]
-  end
-end
-
---- Gets the bottom display block.
----@param cur_line integer current line
----@param ns_id integer namespace id
----@return table? extmark or nil
----@private
-function display.get_display_block_bottom(cur_line, ns_id)
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {cur_line,0}, {-1,0}, {details=true, overlap=true})
-  if #extmarks > 0 then
-    return extmarks[1]
-  end
-end
-
 --- Checks if the repl buffer is showing.
 ---@param kernel string
 ---@return boolean true if showing, false otherwise
@@ -619,23 +595,20 @@ end
 ---@param kernel string?
 function display.jump_display_block_up(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()
-  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
-  local top_in = display.get_display_block_top(cursor[1], Jupyterm.ns_in)
-  local top_out = display.get_display_block_top(cursor[1], Jupyterm.ns_out)
-  if top_in then
-    -- Check if in "out" or "in" block
-    if top_out and top_in[2] < top_out[2] then
-      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {top_in[2]+2, 0})
-    else
-      -- Extra jump if in "in" block
-      top_in = display.get_display_block_top(top_in[2], Jupyterm.ns_in)
-      local top_loc = top_in[2]
-      if top_in[2] == 0 then
-        top_loc = top_loc+3
-      else
-        top_loc = top_loc+2
-      end
-      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {top_loc, 0})
+  local cur_line = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)[1]
+  local out_above = utils.get_extmark_above(cur_line, Jupyterm.ns_out)[2]
+  local in_above = utils.get_extmark_above(cur_line, Jupyterm.ns_in)[2]
+  if in_above > out_above then
+    cur_line = in_above-1
+  else
+    cur_line = out_above
+  end
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_in, {1,0}, {cur_line,0}, {details=true})
+  for i=#extmarks, 1, -1 do
+    local e = extmarks[i]
+    if e[#e].virt_lines then
+      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {e[2]+2, 0})
+      return
     end
   end
 end
@@ -645,16 +618,11 @@ end
 function display.jump_display_block_down(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
-  local bottom_in = display.get_display_block_bottom(cursor[1], Jupyterm.ns_in)
-  local bottom_out = display.get_display_block_bottom(cursor[1], Jupyterm.ns_out)
-  if bottom_in then
-    -- Check if in "out" or "in" block
-    if bottom_out and bottom_in[2] < bottom_out[2] then
-      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {bottom_in[2]+2, 0})
-    else
-      -- Extra jump if in "in" block
-      bottom_in = display.get_display_block_bottom(bottom_in[2], Jupyterm.ns_in)
-      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {bottom_in[2]+2, 0})
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_in, {cursor[1],0}, {-1,0}, {details=true})
+  for _,e in ipairs(extmarks) do
+    if e[#e].virt_lines then
+      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {e[2]+2, 0})
+      return
     end
   end
 end

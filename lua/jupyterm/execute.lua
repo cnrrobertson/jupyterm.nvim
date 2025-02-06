@@ -27,10 +27,10 @@ end
 function execute.send_display_block()
   local kernel = utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
-  local top_in = display.get_display_block_top(cursor[1], Jupyterm.ns_in)
-  local bottom_in = display.get_display_block_bottom(cursor[1], Jupyterm.ns_in)
-  local bottom_out = display.get_display_block_bottom(cursor[1], Jupyterm.ns_out)
-  local top_out = display.get_display_block_top(cursor[1], Jupyterm.ns_out)
+  local top_in = utils.get_extmark_above(cursor[1], Jupyterm.ns_in)
+  local bottom_in = utils.get_extmark_below(cursor[1], Jupyterm.ns_in)
+  local bottom_out = utils.get_extmark_below(cursor[1], Jupyterm.ns_out)
+  local top_out = utils.get_extmark_above(cursor[1], Jupyterm.ns_out)
   if top_in then top_in = top_in[2]+1 end
   if bottom_in then bottom_in = bottom_in[2]+1 end
   if bottom_out then bottom_out = bottom_out[2]+1 end
