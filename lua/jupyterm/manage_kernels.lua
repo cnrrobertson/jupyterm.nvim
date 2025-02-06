@@ -3,14 +3,16 @@ local utils = require("jupyterm.utils")
 local manage_kernels = {}
 
 ---Selects a kernel from the available kernels.
----@return string
+---@return string?
 function manage_kernels.select_kernel()
   local kernel_keys = vim.tbl_keys(Jupyterm.kernels)
-  local return_val = "1"
+  local return_val = nil
   vim.ui.select(kernel_keys, {
     prompt = "Please select an option:",
   }, function(choice)
-      return_val = tostring(choice)
+      if choice then
+        return_val = tostring(choice)
+      end
     end
   )
   return return_val
