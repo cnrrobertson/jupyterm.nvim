@@ -96,11 +96,11 @@ function menu.create_help(keys)
   action_opts.border.text.top = "Actions"
   local action_menu = Popup(action_opts)
   local actions = {
-      Line({Text("New terminal", "Title")}),
+      Line({Text("New kernel", "Title")}),
       Line({Text("  "..menu.join_keys(keys.new), "SpecialKey")}),
-      Line({Text("Destroy terminal", "Title")}),
+      Line({Text("Destroy kernel", "Title")}),
       Line({Text("  "..menu.join_keys(keys.destroy), "SpecialKey")}),
-      Line({Text("Toggle terminal visibility", "Title")}),
+      Line({Text("Toggle kernel REPL", "Title")}),
       Line({Text("  "..menu.join_keys(keys.toggle), "SpecialKey")}),
   }
   for i,a in ipairs(actions) do
@@ -111,7 +111,7 @@ function menu.create_help(keys)
   hint_opts.border.text.top = "Hints"
   local hint_menu = Popup(hint_opts)
   local hints = {
-    Line({Text(" * = displayed terminal", "SpecialKey")})
+    Line({Text(" * = displayed REPL", "SpecialKey")})
   }
   for i,h in ipairs(hints) do
     h:render(hint_menu.bufnr, hint_menu.ns_id, i)
@@ -153,13 +153,13 @@ end
 ---@param keys table<string, string> A table of key mappings.
 function menu.set_mappings(kernel_menu, keys)
   for _,k in pairs(keys.new) do
-    kernel_menu:map("n", k, menu.new_terminal, {noremap=true})
+    kernel_menu:map("n", k, menu.new_kernel, {noremap=true})
   end
   for _,k in pairs(keys.destroy) do
-    kernel_menu:map("n", k, menu.destroy_terminal, {noremap=true})
+    kernel_menu:map("n", k, menu.destroy_kernel, {noremap=true})
   end
   for _,k in pairs(keys.toggle) do
-    kernel_menu:map("n", k, menu.toggle_terminal, {noremap=true})
+    kernel_menu:map("n", k, menu.toggle_kernel, {noremap=true})
   end
 end
 
@@ -216,8 +216,8 @@ function menu.add_kernels(lines)
   end
 end
 
----Creates a new terminal.
-function menu.new_terminal()
+--- Creates a new kernel.
+function menu.new_kernel()
   local free_num = 1
   while Jupyterm.kernels[free_num] do
     free_num = free_num + 1
@@ -227,8 +227,8 @@ function menu.new_terminal()
   menu.toggle_menu()
 end
 
----Destroys the selected terminal.
-function menu.destroy_terminal()
+--- Destroys the selected kernel.
+function menu.destroy_kernel()
   local tree = menu.kernel_menu.tree
   local node = tree:get_node()
   if node then
@@ -238,8 +238,8 @@ function menu.destroy_terminal()
   end
 end
 
----Toggles the visibility of the selected terminal.
-function menu.toggle_terminal()
+--- Toggles the visibility of the selected kernel.
+function menu.toggle_kernel()
   local tree = menu.kernel_menu.tree
   local node = tree:get_node()
   if node then
