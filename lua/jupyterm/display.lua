@@ -90,7 +90,9 @@ end
 
 ---Toggles the repl buffer.
 ---@param kernel string?
-function display.toggle_repl(kernel)
+---@param focus boolean? whether to focus the repl window
+---@param full boolean? whether to display the full output
+function display.toggle_repl(kernel, focus, full)
   -- Use buffer id as default
   kernel = kernel or utils.get_kernel_buf_or_buf()
 
@@ -104,7 +106,7 @@ function display.toggle_repl(kernel)
   if display.is_showing(kernel) then
     display.hide_repl(kernel)
   else
-    display.show_repl(kernel)
+    display.show_repl(kernel, focus, full)
   end
 end
 
@@ -382,7 +384,7 @@ end
 ---@param hl string? highlight group
 function display.show_virt_text(kernel, output_num, start_row, end_row, start_col, end_col, hl)
   -- Delete previous extmarks in range
-  display.hide_virt_text(kernel, start_row, end_row)
+  display.delete_virt_text(kernel, start_row, end_row)
 
   -- Insert new extmarks
   local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
@@ -419,11 +421,51 @@ function display.show_virt_text(kernel, output_num, start_row, end_row, start_co
   Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
 end
 
----Hides virtual text.
+---Toggles virtual text at row (or under cursor)
+---@param kernel? string
+---@param row? integer
+function display.toggle_virt_text_at_row(kernel, row)
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()]
+  row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
+
+  local overlap_extmark = vim.api.nvim_buf_get_extmarks(
+    0,
+    Jupyterm.ns_virt,
+    {row,0},
+    {row,0},
+    {details = true}
+  )
+
+  local lines_showing = false
+
+  if #overlap_extmark > 0 then
+    local oe = overlap_extmark[1]
+    local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {details = true})
+    if Jupyterm.kernels[kernel].virt_olocs == nil then
+      Jupyterm.kernels[kernel].virt_olocs = {}
+    end
+    local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
+    for _,e in ipairs(extmarks) do
+      if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
+        if e[#e].virt_lines then
+          lines_showing = true
+        end
+      end
+    end
+  end
+
+  if lines_showing then
+    display.hide_virt_text_at_row(kernel, row)
+  else
+    display.show_virt_text_at_row(kernel, row)
+  end
+end
+
+---Deletes virtual text in range.
 ---@param kernel string
 ---@param start_row? integer
 ---@param end_row? integer
-function display.hide_virt_text(kernel, start_row, end_row)
+function display.delete_virt_text(kernel, start_row, end_row)
   start_row = start_row or vim.api.nvim_win_get_cursor(0)[1] - 1
   end_row = end_row or start_row
 
@@ -439,6 +481,33 @@ function display.hide_virt_text(kernel, start_row, end_row)
       if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
         vim.api.nvim_buf_del_extmark(0, Jupyterm.ns_virt, e[1])
         Jupyterm.kernels[kernel].virt_olocs[e[1]] = nil
+      end
+    end
+  end
+end
+
+---Hides virtual text at row.
+---@param kernel string
+---@param row? integer
+function display.hide_virt_text_at_row(kernel, row)
+  row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
+
+  -- Delete extmarks in range
+  local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, {row,0}, {row,0}, {details = true})
+  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {details = true})
+  for _,oe in ipairs(overlap_extmarks) do
+    if Jupyterm.kernels[kernel].virt_olocs == nil then
+      Jupyterm.kernels[kernel].virt_olocs = {}
+    end
+    local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
+    for _,e in ipairs(extmarks) do
+      if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
+        vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, e[2], e[3], {
+          id = e[1],
+          sign_text = string.sub(tostring(oloc), -2, -1),
+          sign_hl_group = "JupytermOutText",
+          hl_group = e[#e].hl_group,
+        })
       end
     end
   end
