@@ -189,7 +189,7 @@ end
 function menu.submit(item)
   if item then
     local was_shown = display.is_showing(item.kernel)
-    display.toggle_output_buf(item.kernel)
+    display.toggle_repl(item.kernel)
     if was_shown then menu.show_menu() end
   end
 end
@@ -244,7 +244,7 @@ function menu.toggle_terminal()
   local node = tree:get_node()
   if node then
     menu.toggle_menu()
-    display.toggle_output_buf(node.kernel)
+    display.toggle_repl(node.kernel)
     menu.toggle_menu()
   end
 end

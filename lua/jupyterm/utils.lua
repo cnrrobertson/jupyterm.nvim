@@ -20,7 +20,7 @@ function utils.find_kernel(buf)
   end
 end
 
----Gets the kernel if the current buffer is a Jupyter output buffer
+---Gets the kernel if the current buffer is a Jupyter REPL buffer
 ---@return string?
 function utils.get_kernel_if_in_kernel_buf()
   if utils.is_jupyterm(vim.api.nvim_get_current_buf()) then

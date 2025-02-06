@@ -89,9 +89,9 @@ function Jupyterm.setup(opts)
         menu.toggle_menu()
       end,
     },
-    toggle_term = {
+    toggle_repl = {
       impl = function(args, opts)
-        display.toggle_output_buf(unpack(args))
+        display.toggle_repl(unpack(args))
       end,
       complete = {"kernel"}
     },
@@ -150,7 +150,7 @@ function Jupyterm.setup(opts)
       end
     end,
   })
-  -- Set configs for output windows/buffers
+  -- Set configs for REPL windows/buffers
   vim.api.nvim_create_autocmd("FileType", {
     group = "Jupyterm",
     pattern = "jupyterm-*",
@@ -183,7 +183,7 @@ function Jupyterm.setup(opts)
       vim.keymap.set("n", "<cr>", execute.send_display_block, {desc="Send display block", buffer=0})
       vim.keymap.set("n", "[c", display.jump_display_block_up, {desc="Jump up one display block", buffer=0})
       vim.keymap.set("n", "]c", display.jump_display_block_down, {desc="Jump down one display block", buffer=0})
-      vim.keymap.set("n", "<esc>", function() display.show_output_buf(nil, true) end, {desc="Refresh", buffer=0})
+      vim.keymap.set("n", "<esc>", function() display.show_repl(nil, true) end, {desc="Refresh", buffer=0})
       vim.keymap.set("n", "<c-c>", manage_kernels.interrupt_kernel, {desc="Interrupt", buffer=0})
       vim.keymap.set("n", "<c-q>", manage_kernels.shutdown_kernel, {desc="Shutdown", buffer=0})
     end
@@ -211,7 +211,7 @@ function Jupyterm.setup(opts)
       end
     end
   })
-  -- Only allow output buffers in jupyterm windows
+  -- Only allow REPL buffers in jupyterm windows
   local major = vim.version().major
   local minor = vim.version().minor
   if (major < 1) and (minor > 9) then
@@ -238,12 +238,12 @@ function Jupyterm.setup(opts)
     })
   end
 
-  -- Keep track of output buffer edits to avoid overwriting on refresh
+  -- Keep track of REPL buffer edits to avoid overwriting on refresh
   vim.api.nvim_create_autocmd({"ModeChanged"}, {
     group = "Jupyterm",
     pattern = {"n:[vViRsS\x16\x13]*", "n:no*"},
     callback = function()
-      -- Mark kernel as edited if output buffer is modified
+      -- Mark kernel as edited if REPL buffer is modified
       local bufnr = vim.api.nvim_get_current_buf()
       local filename = vim.api.nvim_buf_get_name(bufnr)
       if filename:match("jupyterm:*") then

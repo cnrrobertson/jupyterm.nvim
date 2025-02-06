@@ -5,7 +5,7 @@ local manage_kernels = require("jupyterm.manage_kernels")
 ---@class execute
 local execute = {}
 
----Sends code to a Jupyter kernel and updates the output buffer.
+---Sends code to a Jupyter kernel and updates the REPL buffer.
 ---@param kernel string The kernel to send the code to.
 ---@param code string The code to send.
 function execute.send(kernel, code)
@@ -14,8 +14,8 @@ function execute.send(kernel, code)
   -- Update window
   if display.is_showing(tostring(kernel)) or Jupyterm.config.show_on_send then
     local focus = Jupyterm.config.focus_on_send
-    display.show_output_buf(tostring(kernel), focus)
-    display.scroll_output_to_bottom(tostring(kernel))
+    display.show_repl(tostring(kernel), focus)
+    display.scroll_repl_to_bottom(tostring(kernel))
   end
 
   -- Reset edited status
@@ -72,7 +72,7 @@ function execute.send_display_block(kernel)
   vim.fn.JupyEval(tostring(kernel), unpack(clean_lines))
 
   -- Refresh
-  display.show_output_buf(kernel)
+  display.show_repl(kernel)
 end
 
 ---Saves or retrieves the kernel location for sending code.

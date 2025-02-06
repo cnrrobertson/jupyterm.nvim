@@ -8,13 +8,13 @@ local manage_kernels = require("jupyterm.manage_kernels")
 
 local display = {}
 
---- Refreshes all output windows.
+--- Refreshes all repl windows.
 function display.refresh_windows()
   for k,_ in pairs(Jupyterm.kernels) do
     if display.is_showing(k) then
       -- Only refresh if not edited
       if not Jupyterm.kernels[k].edited then
-        display.show_output_buf(k, false, Jupyterm.kernels[k].full)
+        display.show_repl(k, false, Jupyterm.kernels[k].full)
       end
     end
   end
@@ -51,7 +51,7 @@ function display.get_display_block_bottom(cur_line, ns_id)
   end
 end
 
----Checks if the output buffer is showing.
+---Checks if the repl buffer is showing.
 ---@param kernel string
 ---@return boolean true if showing, false otherwise
 function display.is_showing(kernel)
@@ -88,9 +88,9 @@ function display.is_showing_virt_text(kernel)
   end
 end
 
----Toggles the output buffer.
+---Toggles the repl buffer.
 ---@param kernel string?
-function display.toggle_output_buf(kernel)
+function display.toggle_repl(kernel)
   -- Use buffer id as default
   kernel = kernel or utils.get_kernel_buf_or_buf()
 
@@ -102,15 +102,15 @@ function display.toggle_output_buf(kernel)
   end
 
   if display.is_showing(kernel) then
-    display.hide_output_buf(kernel)
+    display.hide_repl(kernel)
   else
-    display.show_output_buf(kernel)
+    display.show_repl(kernel)
   end
 end
 
----Hides the output buffer.
+---Hides the repl buffer.
 ---@param kernel string?
-function display.hide_output_buf(kernel)
+function display.hide_repl(kernel)
   -- Use buffer id as default
   kernel = kernel or utils.get_kernel_buf_or_buf()
 
@@ -119,15 +119,15 @@ function display.hide_output_buf(kernel)
   end
 end
 
----Shows the output buffer.
+---Shows the repl buffer.
 ---@param kernel string?
----@param focus boolean? whether to focus the output window
+---@param focus boolean? whether to focus the repl window
 ---@param full boolean? whether to display the full output
-function display.show_output_buf(kernel, focus, full)
+function display.show_repl(kernel, focus, full)
   if focus == nil then
     focus = Jupyterm.config.focus_on_show
   end
-  -- Refresh current window if output window
+  -- Refresh current window if repl window
   kernel = kernel or utils.get_kernel_buf_or_buf()
 
   -- Track previous location if showing
@@ -292,7 +292,7 @@ function display.show_output_buf(kernel, focus, full)
 
   -- Navigate to end
   if focus then
-    display.navigate_to_output_end(kernel)
+    display.navigate_to_repl_end(kernel)
   elseif kernel_win and win_view then
     vim.api.nvim_win_call(kernel_win, function() vim.fn.winrestview(win_view) end)
   end
@@ -515,7 +515,7 @@ end
 
 ---Navigates to the end of the output.
 ---@param kernel string
-function display.navigate_to_output_end(kernel)
+function display.navigate_to_repl_end(kernel)
   local winid = Jupyterm.kernels[kernel].show_win.winid
   local buf_len = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
   vim.api.nvim_set_current_win(winid)
@@ -524,10 +524,10 @@ end
 
 ---Scrolls the output to the bottom.
 ---@param kernel string
-function display.scroll_output_to_bottom(kernel)
+function display.scroll_repl_to_bottom(kernel)
   local cur_win = vim.api.nvim_get_current_win()
   local cursor = vim.api.nvim_win_get_cursor(cur_win)
-  display.navigate_to_output_end(kernel)
+  display.navigate_to_repl_end(kernel)
   vim.api.nvim_set_current_win(cur_win)
   vim.api.nvim_win_set_cursor(cur_win, cursor)
 end
