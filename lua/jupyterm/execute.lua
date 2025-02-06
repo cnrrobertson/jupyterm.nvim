@@ -23,9 +23,8 @@ function execute.send(kernel, code)
 end
 
 ---Sends a display block of code to a Jupyter kernel.
----@param kernel string? The kernel to send the code to (optional).
-function execute.send_display_block(kernel)
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+function execute.send_display_block()
+  local kernel = utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
   local top_in = display.get_display_block_top(cursor[1], Jupyterm.ns_in)
   local bottom_in = display.get_display_block_bottom(cursor[1], Jupyterm.ns_in)
