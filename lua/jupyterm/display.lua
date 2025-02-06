@@ -542,6 +542,7 @@ end
 --- Splits virtual text by newlines into a table of lines for virt_lines.
 ---@param text string text to split
 ---@return table table of lines with highlight info
+---@private
 function display.split_virt_text(text)
 ---@private
   local split_text = utils.split_by_newlines(text)
