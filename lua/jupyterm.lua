@@ -80,7 +80,13 @@ function Jupyterm.setup(opts)
     },
     execute = {
       impl = function(args, opts)
-        vim.fn.JupyEval(unpack(args))
+        if opts.count > -1 then
+          execute.send_lines(args[1], opts.line1, opts.line2)
+        elseif (opts.count == -1) and #opts.fargs > 2 then
+          execute.send(args[1], table.concat(opts.fargs, "", 3, #opts.fargs))
+        else
+          execute.send_line(args[1])
+        end
       end,
       complete = {"kernel", "code"}
     },
@@ -101,18 +107,12 @@ function Jupyterm.setup(opts)
       end,
       complete = {"kernel"}
     },
-    hide_text = {
+    toggle_text_here = {
       impl = function(args, opts)
-        display.hide_virt_text(unpack(args))
-      end,
-      complete = {"kernel", "start_row", "end_row"}
-    },
-    reveal_text = {
-      impl = function(args, opts)
-        display.show_virt_text_at_row(unpack(args))
+        display.toggle_virt_text_at_row(unpack(args))
       end,
       complete = {"kernel", "row"}
-    },
+    }
   }
 
   ---@param opts table of options including fargs
@@ -149,7 +149,9 @@ function Jupyterm.setup(opts)
           :totable()
       end
     end,
+    range = true
   })
+
   -- Set configs for REPL windows/buffers
   vim.api.nvim_create_autocmd("FileType", {
     group = "Jupyterm",
@@ -188,6 +190,7 @@ function Jupyterm.setup(opts)
       vim.keymap.set("n", "<c-q>", manage_kernels.shutdown_kernel, {desc="Shutdown", buffer=0})
     end
   })
+
   -- Periodically refresh displayed windows
   if Jupyterm.config.output_refresh.enabled then
     local refresh_buf_timer = vim.loop.new_timer()
@@ -197,6 +200,7 @@ function Jupyterm.setup(opts)
     local delay = Jupyterm.config.output_refresh.delay
     refresh_virt_text_timer:start(delay, delay, vim.schedule_wrap(display.refresh_virt_text))
   end
+
   -- Clean up jupyterms on exit (helps session management)
   vim.api.nvim_create_autocmd({"ExitPre"}, {
     group = "Jupyterm",
@@ -211,6 +215,7 @@ function Jupyterm.setup(opts)
       end
     end
   })
+
   -- Only allow REPL buffers in jupyterm windows
   local major = vim.version().major
   local minor = vim.version().minor
