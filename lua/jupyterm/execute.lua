@@ -12,7 +12,7 @@ function execute.send(kernel, code)
   vim.fn.JupyEval(tostring(kernel), code)
 
   -- Update window
-  if display.is_showing(tostring(kernel)) or Jupyterm.config.show_on_send then
+  if display.is_repl_showing(tostring(kernel)) or Jupyterm.config.show_on_send then
     local focus = Jupyterm.config.focus_on_send
     display.show_repl(tostring(kernel), focus)
     display.scroll_repl_to_bottom(tostring(kernel))
