@@ -1,3 +1,5 @@
+---@tag Jupyterm.display
+---@signature Jupyterm.display
 local Split = require("nui.split")
 local Popup = require("nui.popup")
 local NuiLine = require("nui.line")
@@ -29,10 +31,11 @@ function display.refresh_virt_text()
   end
 end
 
----Gets the top display block.
+--- Gets the top display block.
 ---@param cur_line integer current line
 ---@param ns_id integer namespace id
 ---@return table? extmark or nil
+---@private
 function display.get_display_block_top(cur_line, ns_id)
   local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {0,0}, {cur_line-1,0}, {details=true, overlap=true})
   if #extmarks > 0 then
@@ -40,10 +43,11 @@ function display.get_display_block_top(cur_line, ns_id)
   end
 end
 
----Gets the bottom display block.
+--- Gets the bottom display block.
 ---@param cur_line integer current line
 ---@param ns_id integer namespace id
 ---@return table? extmark or nil
+---@private
 function display.get_display_block_bottom(cur_line, ns_id)
   local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {cur_line,0}, {-1,0}, {details=true, overlap=true})
   if #extmarks > 0 then
@@ -51,9 +55,10 @@ function display.get_display_block_bottom(cur_line, ns_id)
   end
 end
 
----Checks if the repl buffer is showing.
+--- Checks if the repl buffer is showing.
 ---@param kernel string
 ---@return boolean true if showing, false otherwise
+---@private
 function display.is_repl_showing(kernel)
   if Jupyterm.kernels[kernel].show_win then
     if Jupyterm.kernels[kernel].show_win.winid then
@@ -66,9 +71,10 @@ function display.is_repl_showing(kernel)
   end
 end
 
----Checks if virtual text is showing.
+--- Checks if virtual text is showing.
 ---@param kernel string
 ---@return boolean true if showing, false otherwise
+---@private
 function display.is_virt_text_showing(kernel)
   if Jupyterm.kernels[kernel].virt_buf then
     local extmarks = vim.api.nvim_buf_get_extmarks(
@@ -88,7 +94,7 @@ function display.is_virt_text_showing(kernel)
   end
 end
 
----Toggles the repl buffer.
+--- Toggles the repl buffer.
 ---@param kernel string?
 ---@param focus boolean? whether to focus the repl window
 ---@param full boolean? whether to display the full output
@@ -110,7 +116,7 @@ function display.toggle_repl(kernel, focus, full)
   end
 end
 
----Hides the repl buffer.
+--- Hides the repl buffer.
 ---@param kernel string?
 function display.hide_repl(kernel)
   -- Use buffer id as default
@@ -121,7 +127,7 @@ function display.hide_repl(kernel)
   end
 end
 
----Shows the repl buffer.
+--- Shows the repl buffer.
 ---@param kernel string?
 ---@param focus boolean? whether to focus the repl window
 ---@param full boolean? whether to display the full output
@@ -303,7 +309,7 @@ function display.show_repl(kernel, focus, full)
   Jupyterm.kernels[kernel].edited = nil
 end
 
----Toggles virtual text.
+--- Toggles virtual text.
 ---@param kernel string?
 function display.toggle_virt_text(kernel)
   -- Use buffer id as default
@@ -323,7 +329,7 @@ function display.toggle_virt_text(kernel)
   end
 end
 
----Shows all virtual text.
+--- Shows all virtual text.
 ---@param kernel string
 function display.show_all_virt_text(kernel)
   for oloc=1,vim.fn.JupyOutputLen(tostring(kernel)) do
@@ -332,7 +338,7 @@ function display.show_all_virt_text(kernel)
   end
 end
 
----Hides all virtual text.
+--- Hides all virtual text.
 ---@param kernel string
 function display.hide_all_virt_text(kernel)
   vim.api.nvim_buf_clear_namespace(
@@ -343,8 +349,9 @@ function display.hide_all_virt_text(kernel)
   )
 end
 
----Updates all virtual text.
+--- Updates all virtual text.
 ---@param kernel string
+---@private
 function display.update_all_virt_text(kernel)
   local buf = Jupyterm.kernels[kernel].virt_buf
   local olocs = Jupyterm.kernels[kernel].virt_olocs
@@ -374,7 +381,7 @@ function display.update_all_virt_text(kernel)
   end
 end
 
----Shows virtual text corresponding to a kernel output at rows/cols specified.
+--- Shows virtual text corresponding to a kernel output at rows/cols specified.
 ---@param kernel string
 ---@param output_num integer? kernel output number
 ---@param start_row integer
@@ -382,6 +389,7 @@ end
 ---@param start_col integer?
 ---@param end_col integer?
 ---@param hl string? highlight group
+---@private
 function display.show_virt_text(kernel, output_num, start_row, end_row, start_col, end_col, hl)
   -- Delete previous extmarks in range
   display.delete_virt_text(kernel, start_row, end_row)
@@ -461,10 +469,11 @@ function display.toggle_virt_text_at_row(kernel, row)
   end
 end
 
----Deletes virtual text in range.
+--- Deletes virtual text in range.
 ---@param kernel string
 ---@param start_row? integer
 ---@param end_row? integer
+---@private
 function display.delete_virt_text(kernel, start_row, end_row)
   start_row = start_row or vim.api.nvim_win_get_cursor(0)[1] - 1
   end_row = end_row or start_row
@@ -486,9 +495,10 @@ function display.delete_virt_text(kernel, start_row, end_row)
   end
 end
 
----Hides virtual text at row.
+--- Hides virtual text at row.
 ---@param kernel string
 ---@param row? integer
+---@private
 function display.hide_virt_text_at_row(kernel, row)
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
 
@@ -513,9 +523,10 @@ function display.hide_virt_text_at_row(kernel, row)
   end
 end
 
----Shows virtual text at a specific row.
+--- Shows virtual text at a specific row.
 ---@param kernel string
 ---@param row? integer
+---@private
 function display.show_virt_text_at_row(kernel, row)
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
 
@@ -528,10 +539,11 @@ function display.show_virt_text_at_row(kernel, row)
   end
 end
 
----Splits virtual text by newlines into a table of lines for virt_lines.
+--- Splits virtual text by newlines into a table of lines for virt_lines.
 ---@param text string text to split
 ---@return table table of lines with highlight info
 function display.split_virt_text(text)
+---@private
   local split_text = utils.split_by_newlines(text)
   local result = {}
   for _,st in ipairs(split_text) do
@@ -540,7 +552,7 @@ function display.split_virt_text(text)
   return result
 end
 
----Expands virtual text into a popup.
+--- Expands virtual text into a popup.
 ---@param kernel? string
 ---@param row? integer
 function display.expand_virt_text(kernel, row)
@@ -582,8 +594,9 @@ function display.expand_virt_text(kernel, row)
   vim.api.nvim_buf_set_lines(popup.bufnr, 0, 1, false, split_text)
 end
 
----Navigates to the end of the output.
+--- Navigates to the end of the output.
 ---@param kernel string
+---@private
 function display.navigate_to_repl_end(kernel)
   local winid = Jupyterm.kernels[kernel].show_win.winid
   local buf_len = vim.api.nvim_buf_line_count(Jupyterm.kernels[kernel].show_buf)
@@ -591,7 +604,7 @@ function display.navigate_to_repl_end(kernel)
   vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {buf_len, 0})
 end
 
----Scrolls the output to the bottom.
+--- Scrolls the output to the bottom.
 ---@param kernel string
 function display.scroll_repl_to_bottom(kernel)
   local cur_win = vim.api.nvim_get_current_win()
@@ -601,7 +614,7 @@ function display.scroll_repl_to_bottom(kernel)
   vim.api.nvim_win_set_cursor(cur_win, cursor)
 end
 
----Jumps to the previous display block.
+--- Jumps to the previous display block.
 ---@param kernel string?
 function display.jump_display_block_up(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()
@@ -626,7 +639,7 @@ function display.jump_display_block_up(kernel)
   end
 end
 
----Jumps to the next display block.
+--- Jumps to the next display block.
 ---@param kernel string?
 function display.jump_display_block_down(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()

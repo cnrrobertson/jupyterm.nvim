@@ -1,3 +1,6 @@
+---@tag Jupyterm.config
+---@signature Jupyterm.config
+---
 ---@class config
 ---@field default_kernel string
 ---@field focus_on_show boolean
@@ -6,7 +9,12 @@
 ---@field inline_display boolean
 ---@field output_refresh table
 ---@field ui table
+---
+---@text Default values:
+---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
+--minidoc_replace_start Jupyterm.config = {
 local config = {
+  --minidoc_replace_end
   -- The default Jupyter kernel to use
   default_kernel = "python3",
   -- Focus the REPL window when showing
@@ -51,5 +59,6 @@ local config = {
     }
   }
 }
+--minidoc_afterlines_end
 
 return config

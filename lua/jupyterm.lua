@@ -1,3 +1,87 @@
+--- *jupyterm* Neovim Jupyter kernel manager
+--- *Jupyterm*
+---
+--- MIT License Copyright (c) 2025 Connor Robertson
+---
+--- ===========================================================================
+---
+--- Key features:
+--- - Start, interrupt, and shutdown Jupyter kernels effortlessly.
+--- - Send code blocks or selections to a selected kernel.
+--- - View Jupyter outputs in REPL buffers or as virtual text inline with your code.
+--- - Supports multiple languages via their respective Jupyter kernels (Python, R, Julia, etc.)
+---
+--- # Setup ~
+---
+--- This plugin needs to be setup with |Jupyterm.setup|. It will create a global
+--- Lua table `Jupyterm` which contains the `kernels`.
+---
+--- See |Jupyterm.config| for available config settings.
+---
+--- # Usage ~
+---
+---   1. Start a Kernel: Use the command `:Jupyter start <kernel> [<cwd> <kernel_name>]`.  Replace `<kernel>` with a number/name for the kernel. Optionally, choose the working directory of the kernel with `<cwd>` and choose the language kernel with `<kernel_name>` (e.g., `python3`, `ir`, `ijulia`). By default, Neovim's `cwd` and the `python3` kernel are used.
+---
+---   2. Send Code: `:Jupyter execute <kernel>` will send the current line to the kernel. Visual selection then `:'<,'>Jupyter execute <kernel>` will send the selection to the kernel. Alternatively, send code directly via `:Jupyter execute <kernel> <code>`.  See the `lua` API in the help file for `send_line`, `send_visual`, `send_select`, and `send_file` from `require("jupyterm.execute")` to send the current line, visual selection, to a selected kernel, and the entire current buffer respectively.
+---
+---   3. Manage Kernels: Use `:Jupyter status`, `:Jupyter interrupt`, `:Jupyter shutdown`, and `:Jupyter menu` to check the status, interrupt execution, shutdown a kernel, or view active kernels in an interactive popup menu.
+---
+---   4. Output Display: Outputs will appear in a dedicated REPL buffer or inline, depending on your configuration (`jupyterm.config.inline_display`). You can also use `:Jupyter toggle_repl` and `:Jupyter toggle_text` to manage the REPL buffer and virtual text respectively. Use `:Jupyter toggle_text_here` to toggle individual inline outputs.
+---
+---   5. REPL: After opening the REPL buffer with `:Jupyter toggle_repl`, the buffer may be edited as normal. Text inserted below the last `In [*]` in the buffer will be considered a new input. By default, hitting enter in normal mode will submit the input to the kernel. See the [REPL section](#repl) for more information on this buffer.
+---
+--- # User Commands ~
+---
+--- User commands are shown below. Optional arguments are marked with a `?`:
+---
+---   Starts a Jupyter kernel.
+---   `:Jupyter start kernel cwd? kernel_name?`
+---
+---   Shuts down a Jupyter kernel.
+---   `:Jupyter shutdown kernel`
+---
+---   Checks the status of a Jupyter kernel.
+---   `:Jupyter status kernel`
+---
+---   Interrupts a Jupyter kernel.
+---   `:Jupyter interrupt kernel`
+---
+---   Executes code in a specified kernel.
+---   `:Jupyter execute kernel? code?`
+---
+---   Toggles the Jupyter kernel menu.
+---   `:Jupyter menu`
+---
+---   Toggles the REPL window for a kernel.
+---   `:Jupyter toggle_repl kernel? focus? full?`
+---
+---   Toggles the display of virtual text outputs for a kernel.
+---   `:Jupyter toggle_text kernel?`
+---
+---   Toggles virtual text output in the range under the cursor.
+---   `:Jupyter toggle_text_here kernel row?`
+---
+--- Note that `kernel` generally refers to the kernel identifier in Neovim and not the `kernel_name` or the actual descriptor of a Jupyter kernel (e.g., `python3`, `ir`). Optional arguments can be omitted.
+---
+--- # REPL ~
+---
+--- The REPL (Read-Eval-Print Loop) buffer provides an interactive environment for executing code and viewing results. This buffer can be shown using `:Jupyter toggle_repl`. Text inserted *after* the last `In [*]` marker in this buffer is treated as a new input cell. Pressing Enter in normal mode will submit this input to the kernel.
+---
+--- The REPL buffer automatically refreshes to display updates from long-running computations. However, this automatic refresh pauses when you begin typing new input, preventing accidental overwriting.
+---
+--- To manage the length of the buffer and optimize refresh speed, the buffer's display is limited to a certain number of lines (configurable via `jupyterm.config.ui.max_displayed_lines`).  This prevents performance slowdowns from extremely large outputs. If needed, you can view the complete output by using the `full` argument of `Jupyter toggle_repl` or see the `lua` API in the help file.
+---
+--- The REPL buffer also comes with default keybindings for convenience:
+---
+---    *<CR>*: Submits the current input to the kernel.
+---    *<Esc>*: Refreshes the display, showing the most current kernel output.
+---    *[c*: Jumps to the previous display block.
+---    *]c*: Jumps to the next display block.
+---    *<C-c>*: Interrupts the currently running kernel.
+---    *<C-q>*: Shuts down the currently running kernel.
+---
+--- These keybindings make interacting with the REPL buffer intuitive and efficient.
+-- Plugin definition =======================================================
 local config = require("jupyterm.config")
 local utils = require("jupyterm.utils")
 local display = require("jupyterm.display")
@@ -19,7 +103,7 @@ Jupyterm.lang_to_kernel = {
   julia="ijulia",
 }
 
----Update config, setup namespaces, highlight groups, user commands, autocmds, and timers
+--- Update config, setup namespaces, highlight groups, user commands, autocmds, and timers
 ---@param opts table of options to override the default config
 function Jupyterm.setup(opts)
   opts = opts or {}

@@ -1,11 +1,12 @@
+---@tag Jupyterm.execute
+---@signature Jupyterm.execute
 local utils = require("jupyterm.utils")
 local display = require("jupyterm.display")
 local manage_kernels = require("jupyterm.manage_kernels")
 
----@class execute
 local execute = {}
 
----Sends code to a Jupyter kernel and updates the REPL buffer.
+--- Sends code to a Jupyter kernel and updates the REPL buffer.
 ---@param kernel string The kernel to send the code to.
 ---@param code string The code to send.
 function execute.send(kernel, code)
@@ -22,7 +23,7 @@ function execute.send(kernel, code)
   Jupyterm.kernels[kernel].edited = nil
 end
 
----Sends a display block of code to a Jupyter kernel.
+--- Sends current repl block of code to a Jupyter kernel.
 function execute.send_display_block()
   local kernel = utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
@@ -74,9 +75,10 @@ function execute.send_display_block()
   display.show_repl(kernel)
 end
 
----Saves or retrieves the kernel location for sending code.
+--- Saves or retrieves the kernel location for sending code.
 ---@param kernel string?
 ---@return string kernel
+---@private
 function execute.save_kernel_location(kernel)
   if kernel == nil then
     local buf = vim.api.nvim_get_current_buf()
@@ -90,8 +92,9 @@ function execute.save_kernel_location(kernel)
   end
 end
 
----Selects a kernel to send code to.
+--- Selects a kernel to send code to.
 ---@return string new_kernel
+---@private
 function execute.select_send_term()
   local buf = vim.api.nvim_get_current_buf()
   local kernel = manage_kernels.select_kernel() or utils.get_kernel_buf_or_buf()
@@ -102,7 +105,7 @@ function execute.select_send_term()
   return kernel
 end
 
----Sends code to a selected kernel.
+--- Sends code to a selected kernel.
 ---@param kernel string?
 ---@param cmd string
 function execute.send_select(kernel, cmd)
@@ -110,7 +113,7 @@ function execute.send_select(kernel, cmd)
   execute.send(kernel, cmd)
 end
 
----Sends the current line to a Jupyter kernel.
+--- Sends the current line to a Jupyter kernel.
 ---@param kernel string?
 function execute.send_line(kernel)
   kernel = execute.save_kernel_location(kernel)
@@ -137,7 +140,7 @@ function execute.send_line(kernel)
   end
 end
 
----Sends multiple lines of code to a Jupyter kernel.
+--- Sends multiple lines of code to a Jupyter kernel.
 ---@param kernel string?
 ---@param start_line integer
 ---@param end_line integer
@@ -179,11 +182,12 @@ function execute.send_lines(kernel, start_line, end_line)
   end
 end
 
----Sends a selection of code to a Jupyter kernel.
+--- Sends a selection of code to a Jupyter kernel.
 ---@param kernel string
 ---@param line integer
 ---@param start_col integer
 ---@param end_col integer
+---@private
 function execute.send_selection(kernel, line, start_col, end_col)
   local sc = nil
   local ec = nil
@@ -215,7 +219,7 @@ function execute.send_selection(kernel, line, start_col, end_col)
   end
 end
 
----Sends the visually selected code to a Jupyter kernel.
+--- Sends the visually selected code to a Jupyter kernel.
 ---@param kernel string?
 function execute.send_visual(kernel)
   kernel = execute.save_kernel_location(kernel)
@@ -233,7 +237,7 @@ function execute.send_visual(kernel)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', false, true, true), 'nx', false)
 end
 
----Sends the entire file to a Jupyter kernel.
+--- Sends the entire file to a Jupyter kernel.
 ---@param kernel string?
 function execute.send_file(kernel)
   kernel = execute.save_kernel_location(kernel)

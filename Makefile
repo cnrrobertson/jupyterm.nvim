@@ -11,7 +11,7 @@ config: ##                            -- Generate diff of config in README vs lu
 ##    Documentation
 ##    -------------
 docs: deps ##                         -- Compile documentation from source files
-	nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "lua MiniDoc.generate({'lua/jupyterm.lua', 'lua/jupyterm/config.lua'})" -c "quit"
+	nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "lua MiniDoc.generate({'lua/jupyterm.lua', 'lua/jupyterm/config.lua', 'lua/jupyterm/manage_kernels.lua', 'lua/jupyterm/execute.lua', 'lua/jupyterm/display.lua', 'lua/jupyterm/menu.lua'})" -c "quit"
 
 ## ----------------------------------------------
 ##    Tests
