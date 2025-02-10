@@ -170,7 +170,3 @@ You can override these settings by calling `require("jupyterm").setup({})` with 
 
 *   [https://github.com/jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab): JupyterLab itself, the web-based Jupyter environment.  This plugin integrates with it, not replace it.
 *   Other Neovim plugins that aim to provide similar functionality may exist, but they typically lack the flexibility and robust features offered by jupyterm.nvim.
-
-## TODO
-- [ ] Add ability to fold input or output cells in repl
-- [ ] Find a way to disable/change highlighting in output cells
