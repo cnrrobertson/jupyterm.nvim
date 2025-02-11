@@ -31,7 +31,7 @@ return {
   'cnrrobertson/jupyterm.nvim',
   dependencies = {
     'MunifTanjim/nui.nvim',
-    'nvim-treesitter/nvim-treesitter', -- Optional, for improved syntax highlighting in REPL buffers
+    'nvim-treesitter/nvim-treesitter', -- Optional, for syntax highlighting in REPL buffers
   },
   config = true,
   build = ":UpdateRemotePlugins",
@@ -48,7 +48,7 @@ use {
   'cnrrobertson/jupyterm.nvim',
   requires = {
     'MunifTanjim/nui.nvim',
-    'nvim-treesitter/nvim-treesitter', -- Optional, for improved syntax highlighting in REPL buffers
+    'nvim-treesitter/nvim-treesitter', -- Optional, for syntax highlighting in REPL buffers
   },
   config = function()
     require("jupyterm").setup()
@@ -66,7 +66,7 @@ add {
   source = 'cnrrobertson/jupyterm.nvim',
   depends = {
     'MunifTanjim/nui.nvim',
-    'nvim-treesitter/nvim-treesitter', -- Optional, for improved syntax highlighting in REPL buffers
+    'nvim-treesitter/nvim-treesitter', -- Optional, for syntax highlighting in REPL buffers
   }
 }
 require("jupyterm").setup()
