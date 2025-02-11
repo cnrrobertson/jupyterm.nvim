@@ -14,31 +14,37 @@
 
 ### Python
 
-Given this plugin interfaces with `Jupyter`, the following Python dependenices must be installed:
+Given this plugin interfaces with `Jupyter`, the following Python dependencies must be installed:
 
 * `jupyter_client`
 * `pynvim`
 * `pillow` (optional - allows output images to be opened automatically)
 
 ### Neovim
-**lazy.nvim**
+The easiest way to install this plugin is via a plugin manager. Several are listed below:
+
+<details>
+<summary>lazy.nvim</summary>
 
 ```lua
-{
+return {
   'cnrrobertson/jupyterm.nvim',
   dependencies = {
     'MunifTanjim/nui.nvim',
     'nvim-treesitter/nvim-treesitter', -- Optional, for improved syntax highlighting in REPL buffers
   },
   config = true,
+  build = ":UpdateRemotePlugins",
   opts = {}
 }
 ```
+</details>
 
-**packer.nvim**
+<details>
+<summary>packer.nvim</summary>
 
 ```lua
-{
+use {
   'cnrrobertson/jupyterm.nvim',
   requires = {
     'MunifTanjim/nui.nvim',
@@ -46,14 +52,17 @@ Given this plugin interfaces with `Jupyter`, the following Python dependenices m
   },
   config = function()
     require("jupyterm").setup()
+    vim.cmd[[UpdateRemotePlugins]]
   end
 }
 ```
+</details>
 
-**mini.deps**
+<details>
+<summary>mini.deps</summary>
 
 ```lua
-{
+add {
   source = 'cnrrobertson/jupyterm.nvim',
   depends = {
     'MunifTanjim/nui.nvim',
@@ -61,9 +70,14 @@ Given this plugin interfaces with `Jupyter`, the following Python dependenices m
   }
 }
 require("jupyterm").setup()
+vim.cmd[[UpdateRemotePlugins]]
 ```
+</details>
 
-## Usage
+Alternatively, you can clone this repo into `~/.local/share/nvim/site/pack/*/start/` to manually install.
+See `:help packages` for more information.
+
+## Basic Usage
 
 1. **Start a Kernel:** Use the command `:Jupyter start <kernel> [<cwd> <kernel_name>]`. Replace `<kernel>` with a number/name for the kernel. Optionally, choose the working directory of the kernel with `<cwd>` and choose the language kernel with `<kernel_name>` (e.g., `python3`, `ir`, `ijulia`). By default, Neovim's `cwd` and the `python3` kernel are used.
 
@@ -93,6 +107,8 @@ User commands are shown in the following table. Optional arguments are marked wi
 
 Note that `kernel` generally refers to the kernel identifier in Neovim and not the `kernel_name` or the actual descriptor of a Jupyter kernel (e.g., `python3`, `ir`). Optional arguments can be omitted.
 
+See `:help jupyterm` or the [help file](https://github.com/cnrrobertson/jupyterm.nvim/blob/main/doc/jupyterm.txt) to see the Lua API for more flexibility.
+
 ## REPL
 
 The REPL (Read-Eval-Print Loop) buffer provides an interactive environment for executing code and viewing results. This buffer can be shown using `:Jupyter toggle_repl`. Text inserted *after* the last `In [*]` marker in this buffer is treated as a new input cell. Pressing Enter in normal mode will submit this input to the kernel.
@@ -103,16 +119,18 @@ To manage the length of the buffer and optimize refresh speed, the buffer's disp
 
 The REPL buffer also comes with default keybindings for convenience:
 
-* **`<CR>` (Enter):** Submits the current input to the kernel.
-* **`<Esc>`:** Refreshes the display, showing the most current kernel output.
-* **`[c`:** Jumps to the previous display block.
-* **`]c`:** Jumps to the next display block.
-* **`<C-c>`:** Interrupts the currently running kernel.
-* **`<C-q>`:** Shuts down the currently running kernel.
+* `<CR>` (Enter): Submits the current input to the kernel.
+* `<Esc>`: Refreshes the display, showing the most current kernel output.
+* `[c`: Jumps to the previous display block.
+* `]c`: Jumps to the next display block.
+* `<C-c>`: Interrupts the currently running kernel.
+* `<C-q>`: Shuts down the currently running kernel.
 
 These keybindings make interacting with the REPL buffer intuitive and efficient.
 
 ## Default Configuration
+
+You can input custom settings by calling `require("jupyterm").setup(my_config)` where `my_config` is a table containing your custom options.
 
 The default configuration is as follows:
 
@@ -164,9 +182,18 @@ config = {
 }
 ```
 
-You can override these settings by calling `require("jupyterm").setup({})` with a table containing your custom options.
-
 ## Similar Plugins
 
-*   [https://github.com/jupyterlab/jupyterlab](https://github.com/jupyterlab/jupyterlab): JupyterLab itself, the web-based Jupyter environment.  This plugin integrates with it, not replace it.
-*   Other Neovim plugins that aim to provide similar functionality may exist, but they typically lack the flexibility and robust features offered by jupyterm.nvim.
+* [vim-jukit](https://github.com/luk400/vim-jukit): Single Jupyter kernel. Very nice REPL buffer display. Allows displaying outputs with uberzug and saving outputs to file. Built on ipython repl.
+* [molten-nvim](https://github.com/benlubas/molten-nvim): Transforms buffer into a notebook. Run cells and see output inline.
+* [jupynium.nvim](https://github.com/kiyoon/jupynium.nvim): Edit a buffer with notebook cells and update a running Jupyter notebook in a browser with Selenium.
+* [jupyter-kernel.nvim](https://github.com/lkhphuc/jupyter-kernel.nvim): Attach to running Jupyter kernels and send code to them. Inspect and get completion from kernel.
+* [nvim-ipy](https://github.com/bfredl/nvim-ipy): Start kernels. Attach to kernels. Send text/cells to kernels.
+* [neopyter](https://github.com/SUSTech-data/neopyter): Bridge between Neovim and Jupyterlab. Uses Jupyterlab extension to communicate sending cells from buffer to running kernel.
+* [jupyter-vim](https://github.com/jupyter-vim/jupyter-vim): Connect to Jupyter QtConsole and send text there.
+* [jupyter-ascending](https://github.com/imbue-ai/jupyter_ascending.vim): Send text to a notebook running in an external kernel.
+
+## Complementary Plugins
+
+* [notebook-navigator.nvim](https://github.com/GCBallesteros/NotebookNavigator.nvim): Provides a notebook mode for moving between cells. Facilitates editing and sending cell text. Integrates with this plugin.
+* [jupytext.nvim](https://github.com/goerz/jupytext.nvim): Automatically convert opened `.ipynb` notebook files to scripts with cell delimiters.
