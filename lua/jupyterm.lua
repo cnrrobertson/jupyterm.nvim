@@ -241,7 +241,7 @@ function Jupyterm.setup(opts)
     group = "Jupyterm",
     pattern = "jupyterm-*",
     callback = function()
-      -- Identify language and set syntax, keymaps
+      -- Identify language
       local buf_name = vim.api.nvim_buf_get_name(0)
       local language = "python"
       local kernel_name = "python3"
@@ -251,18 +251,25 @@ function Jupyterm.setup(opts)
           kernel_name = k
         end
       end
+
+      -- Syntax highlighting
+      vim.api.nvim_set_option_value("syntax", "on", {buf = 0})
+      local bufnr = vim.api.nvim_get_current_buf()
       local status, _ = pcall(require, 'nvim-treesitter')
+      Jupyterm.jupystring[bufnr] = "```"..language
       if status then
-        vim.api.nvim_set_option_value("syntax", "on", {buf = 0})
-        vim.treesitter.language.register(language, 'jupyterm-'..kernel_name)
+        vim.treesitter.language.register("markdown", 'jupyterm-'..kernel_name)
         vim.cmd[[TSBufEnable highlight]]
-        local bufnr = vim.api.nvim_get_current_buf()
-        Jupyterm.jupystring[bufnr] = "\"\"\""
       else
-        vim.cmd("runtime! syntax/"..language..".vim")
-        local bufnr = vim.api.nvim_get_current_buf()
-        Jupyterm.jupystring[bufnr] = "#"
+        if vim.g.markdown_fenced_languages == nil then
+          vim.g.markdown_fenced_languages = {language}
+        else
+          table.insert(vim.g.markdown_fenced_languages, language)
+        end
+        vim.cmd("setlocal syntax=markdown")
       end
+
+      -- Options and keybindings
       vim.bo.tabstop = 4
       vim.bo.shiftwidth = 4
       vim.bo.expandtab = true

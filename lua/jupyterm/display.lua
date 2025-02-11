@@ -160,7 +160,7 @@ function display.show_repl(kernel, focus, full)
   local final_txt = NuiLine()
   final_txt:append(
     NuiText(
-          string.format(commentstring.." In [%s]: ", #input+1),
+          commentstring,
           {
             hl_group="JupytermInText",
             hl_mode = "combine",
@@ -169,6 +169,10 @@ function display.show_repl(kernel, focus, full)
             virt_lines = {
               {{
                 "───────────────────────────────────────────────────────────────",
+                "JupytermInText"
+              }},
+              {{
+                string.format("In [%s]: ", #input+1),
                 "JupytermInText"
               }},
             }
@@ -199,7 +203,7 @@ function display.show_repl(kernel, focus, full)
     local out_txt = NuiLine()
     out_txt:append(
       NuiText(
-        string.format(commentstring.." Out [%s]:", ind),
+        commentstring,
         {
           hl_group="JupytermOutText",
           hl_mode = "combine",
@@ -210,6 +214,10 @@ function display.show_repl(kernel, focus, full)
               "───────────────────────────────",
               "JupytermOutText"
             }},
+            {{
+              string.format("Out [%s]:", ind),
+              "JupytermOutText"
+            }},
           }
         }
       ), {}
@@ -217,7 +225,7 @@ function display.show_repl(kernel, focus, full)
     local out_txt2 = NuiLine()
     out_txt2:append(
       NuiText(
-        commentstring,
+        "```",
         {
           hl_group="JupytermOutText",
           hl_mode = "combine",
@@ -241,7 +249,7 @@ function display.show_repl(kernel, focus, full)
     local in_txt = NuiLine()
     in_txt:append(
       NuiText(
-            string.format(commentstring.." In [%s]: ", ind),
+            commentstring,
             {
               hl_group="JupytermInText",
               hl_mode = "combine",
@@ -252,6 +260,10 @@ function display.show_repl(kernel, focus, full)
                   "───────────────────────────────────────────────────────────────",
                   "JupytermInText"
                 }},
+                {{
+                  string.format("In [%s]: ", ind),
+                  "JupytermInText"
+                }},
               }
             }
       ),
@@ -260,7 +272,7 @@ function display.show_repl(kernel, focus, full)
     local in_txt2 = NuiLine()
     in_txt2:append(
       NuiText(
-        commentstring,
+        "```",
         {
           hl_group="JupytermInText",
           hl_mode = "combine",
