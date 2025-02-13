@@ -308,7 +308,19 @@ function display.update_all_virt_text(kernel)
   local outputs = vim.fn.JupyOutput(tostring(kernel))[2]
   for _,e in ipairs(extmarks) do
     local oloc = olocs[e[1]]
-    local formatted_output = display.split_virt_text(outputs[oloc])
+
+    -- Update sign text highlighting
+    local vl = outputs[oloc] or ""
+    local text_hl_group = "JupytermVirtQueued"
+    if string.match(vl, Jupyterm.config.ui.wait_str) then
+      text_hl_group = "JupytermVirtComputing"
+    elseif string.match(vl, "Error") then
+      text_hl_group = "JupytermVirtError"
+    else
+      text_hl_group = "JupytermVirtCompleted"
+    end
+
+    local formatted_output = display.split_virt_text(outputs[oloc], text_hl_group)
     if e[#e].virt_lines then
       vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], {
         id = e[1],
@@ -316,14 +328,14 @@ function display.update_all_virt_text(kernel)
         end_col = e[#e].end_col,
         virt_lines = formatted_output,
         sign_text = e[#e].sign_text,
-        sign_hl_group = "JupytermOutText",
+        sign_hl_group = text_hl_group,
         hl_group = e[#e].hl_group,
       })
     else
       vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], {
         id = e[1],
         sign_text = e[#e].sign_text,
-        sign_hl_group = "JupytermOutText",
+        sign_hl_group = text_hl_group,
         hl_group = e[#e].hl_group,
       })
     end
@@ -352,21 +364,33 @@ function display.show_virt_text(kernel, output_num, start_row, end_row, start_co
 
   for row=start_row,end_row do
     local virt_id = nil
+
+    -- Update sign text highlighting
+    local vl = output[output_num] or ""
+    local text_hl_group = "JupytermVirtQueued"
+    if string.match(vl, Jupyterm.config.ui.wait_str) then
+      text_hl_group = "JupytermVirtComputing"
+    elseif string.match(vl, "Error") then
+      text_hl_group = "JupytermVirtError"
+    else
+      text_hl_group = "JupytermVirtCompleted"
+    end
+
+    local formatted_output = display.split_virt_text(output[output_num], text_hl_group)
     if row == end_row then
-      local formatted_output = display.split_virt_text(output[output_num])
       start_col = start_col or 0
       end_col = end_col or line_len
       virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, start_col, {
         end_col = end_col,
         virt_lines = formatted_output,
         sign_text = string.sub(tostring(output_num), -2, -1),
-        sign_hl_group = "JupytermOutText",
+        sign_hl_group = text_hl_group,
         hl_group = hl,
       })
     else
       virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, 0, {
         sign_text = string.sub(tostring(output_num), -2, -1),
-        sign_hl_group = "JupytermOutText",
+        sign_hl_group = text_hl_group,
         hl_group = hl,
       })
     end
@@ -464,7 +488,7 @@ function display.hide_virt_text_at_row(kernel, row)
         vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, e[2], e[3], {
           id = e[1],
           sign_text = string.sub(tostring(oloc), -2, -1),
-          sign_hl_group = "JupytermOutText",
+          sign_hl_group = e[#e].sign_hl_group,
           hl_group = e[#e].hl_group,
         })
       end
@@ -490,14 +514,15 @@ end
 
 --- Splits virtual text by newlines into a table of lines for virt_lines.
 ---@param text string text to split
+---@param hl string hl group for the text
 ---@return table? table of lines with highlight info
 ---@private
-function display.split_virt_text(text)
+function display.split_virt_text(text, hl)
 ---@private
   local split_text = utils.split_by_newlines(text)
   local result = {}
   for _,st in ipairs(split_text) do
-    table.insert(result, {{st, "JupytermVirtText"}})
+    table.insert(result, {{st, hl}})
   end
   if #result == 1 then
     if result[1][1][1] ~= "" then
