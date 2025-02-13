@@ -96,10 +96,10 @@ function display.show_repl(kernel, focus, full)
     vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
   end
   if show_win == nil then
-    if Jupyterm.config.ui.format == "split" then
-      Jupyterm.kernels[kernel].show_win = Split(Jupyterm.config.ui.config)
+    if Jupyterm.config.ui.repl.format == "split" then
+      Jupyterm.kernels[kernel].show_win = Split(Jupyterm.config.ui.repl.config)
     else
-      Jupyterm.kernels[kernel].show_win = Popup(Jupyterm.config.ui.config)
+      Jupyterm.kernels[kernel].show_win = Popup(Jupyterm.config.ui.repl.config)
     end
     Jupyterm.kernels[kernel].show_win.bufnr = show_buf
     Jupyterm.kernels[kernel].show_win:mount()
