@@ -44,10 +44,16 @@ end
 ---@param kernel string?
 function manage_kernels.shutdown_kernel(kernel)
   kernel = kernel or utils.get_kernel_buf_or_buf()
-  if Jupyterm.kernels[kernel].show_win then
-    if Jupyterm.kernels[kernel].show_win.bufnr then
-      vim.api.nvim_buf_delete(Jupyterm.kernels[kernel].show_win.bufnr, {force=true})
-    end
+  if utils.is_repl_showing(kernel) then
+    Jupyterm.kernels[kernel].show_win:unmount()
+  end
+  if utils.is_virt_text_showing(kernel) then
+    vim.api.nvim_buf_clear_namespace(
+      Jupyterm.kernels[kernel].virt_buf,
+      Jupyterm.ns_virt,
+      0,
+      -1
+    )
   end
   Jupyterm.kernels[kernel] = nil
   vim.fn.JupyShutdown(tostring(kernel))
