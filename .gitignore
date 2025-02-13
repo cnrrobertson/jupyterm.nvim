@@ -41,7 +41,10 @@ luac.out
 
 # Temp resources
 tmp
-deps
+deps/nui.nvim
+deps/mini.nvim
+deps/bin
+deps/pixi.lock
 
 __pycache__
 .pixi/envs/default

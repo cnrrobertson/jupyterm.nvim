@@ -1,0 +1,14 @@
+[project]
+authors = []
+channels = ["conda-forge"]
+description = "Minimal config for jupyterm.nvim"
+name = "jupyterm.nvim"
+platforms = ["win-64", "linux-64", "osx-arm64", "osx-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+pynvim = "*"
+jupyter_client = "*"
+pillow = "*"
