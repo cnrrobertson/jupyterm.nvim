@@ -81,6 +81,15 @@
 ---    *<C-q>*: Shuts down the currently running kernel.
 ---
 --- These keybindings make interacting with the REPL buffer intuitive and efficient.
+---
+--- # Highlight groups ~
+---
+--- * `JupytermInText` - Titles of input blocks in REPL buffer
+--- * `JupytermOutText` - Titles of output blocks in REPL buffer
+--- * `JupytermVirtQueued` - Color of virtual text when queued for execution
+--- * `JupytermVirtComputing` - Color of virtual text when currently being executed
+--- * `JupytermVirtCompleted` - Color of virtual text when execution completed
+--- * `JupytermVirtError` - Color of virtual text when execution errored
 -- Plugin definition =======================================================
 local config = require("jupyterm.config")
 local utils = require("jupyterm.utils")
