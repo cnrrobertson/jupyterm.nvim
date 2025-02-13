@@ -118,7 +118,10 @@ function Jupyterm.setup(opts)
   Jupyterm.ns_out = vim.api.nvim_create_namespace("jupyterm-out")
   vim.api.nvim_set_hl(0, "JupytermInText", {link = "Function", default = true})
   vim.api.nvim_set_hl(0, "JupytermOutText", {link = "Identifier", default = true})
-  vim.api.nvim_set_hl(0, "JupytermVirtText", {link = "DiffText", default = true})
+  vim.api.nvim_set_hl(0, "JupytermVirtQueued", {link = "DiffChange", default = true})
+  vim.api.nvim_set_hl(0, "JupytermVirtComputing", {link = "DiffText", default = true})
+  vim.api.nvim_set_hl(0, "JupytermVirtCompleted", {link = "DiffAdd", default = true})
+  vim.api.nvim_set_hl(0, "JupytermVirtError", {link = "DiffDelete", default = true})
 
   ---Setup user commands
   ---@param args table of strings to complete
