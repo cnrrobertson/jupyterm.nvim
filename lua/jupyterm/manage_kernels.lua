@@ -35,7 +35,9 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
     vim.print("Kernel "..kernel.." has already been started.")
   else
     kernel_name = kernel_name or Jupyterm.config.default_kernel
-    vim.fn.JupyStart(kernel, cwd, kernel_name)
+    local queue_str = Jupyterm.config.ui.queue_str
+    local wait_str = Jupyterm.config.ui.wait_str
+    vim.fn.JupyStart(kernel, cwd, kernel_name, wait_str, queue_str)
     Jupyterm.kernels[kernel] = {kernel_name=kernel_name}
   end
 end

@@ -1,6 +1,5 @@
 import pynvim
 from jupyter_client import KernelManager
-# from jupyter_client.kernelspec import KernelSpecManager
 import base64
 import tempfile
 try:
@@ -18,11 +17,6 @@ class Jupyterm(object):
         self.nvim = nvim
         self.kernels = {}
         self.lock = threading.Lock()
-        # ksm = KernelSpecManager()
-        # kernels = ksm.find_kernel_specs()
-        # self.nvim.out_write("Available kernels:\n")
-        # for name, path in kernels.items():
-        #     self.nvim.out_write(f"{name}: {path}\n")
 
     def _check_kernel(self, kernel):
         with self.lock:
@@ -33,8 +27,10 @@ class Jupyterm(object):
         kernel_id = args[0]
         cwd = args[1]
         kernel_name = args[2]
+        wait_str = args[3]
+        queue_str = args[4]
         if not self._check_kernel(kernel_id):
-            kernel = Kernel(self.nvim, cwd, kernel_name)
+            kernel = Kernel(self.nvim, cwd, kernel_name, wait_str, queue_str)
             kernel.start()
             with self.lock:
                 self.kernels[kernel_id] = kernel
@@ -103,7 +99,7 @@ class Jupyterm(object):
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
 
 class Kernel(object):
-    def __init__(self, nvim, cwd=".", kernel_name="python3"):
+    def __init__(self, nvim, cwd=".", kernel_name="python3", wait_str = "Computing...", queue_str = "Queued"):
         self.nvim = nvim
         self.inputs = []
         self.outputs = []
@@ -111,8 +107,8 @@ class Kernel(object):
         self.kernel_name = kernel_name
         self.lock = threading.Lock()
         self.queue = queue.Queue()
-        self.wait_str = "Computing..."
-        self.queue_str = "Queued"
+        self.wait_str = wait_str
+        self.queue_str = queue_str
         self.kernel_status = "Initialized"
 
     def start(self):
