@@ -529,7 +529,7 @@ end
 
 --- Splits virtual text by newlines into a table of lines for virt_lines.
 ---@param text string text to split
----@return table table of lines with highlight info
+---@return table? table of lines with highlight info
 ---@private
 function display.split_virt_text(text)
 ---@private
@@ -538,7 +538,13 @@ function display.split_virt_text(text)
   for _,st in ipairs(split_text) do
     table.insert(result, {{st, "JupytermVirtText"}})
   end
-  return result
+  if #result == 1 then
+    if result[1][1][1] ~= "" then
+      return result
+    end
+  else
+    return result
+  end
 end
 
 --- Expands virtual text into a popup.
