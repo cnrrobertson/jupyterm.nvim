@@ -116,7 +116,7 @@ function Jupyterm.setup(opts)
   Jupyterm.ns_virt = vim.api.nvim_create_namespace("jupyterm-virtual")
   Jupyterm.ns_in = vim.api.nvim_create_namespace("jupyterm-in")
   Jupyterm.ns_out = vim.api.nvim_create_namespace("jupyterm-out")
-  vim.api.nvim_set_hl(0, "JupytermInText", {link = "@markup.heading.2.markdown", default = true})
+  vim.api.nvim_set_hl(0, "JupytermInText", {link = "Function", default = true})
   vim.api.nvim_set_hl(0, "JupytermOutText", {link = "Identifier", default = true})
   vim.api.nvim_set_hl(0, "JupytermVirtText", {link = "DiffText", default = true})
 
