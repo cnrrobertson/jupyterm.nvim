@@ -9,6 +9,54 @@ function utils.is_jupyterm(buf)
   return jupy_name ~= nil
 end
 
+--- Checks if the repl buffer is showing.
+---@param kernel string
+---@return boolean true if showing, false otherwise
+---@private
+function utils.is_repl_showing(kernel)
+  if Jupyterm.kernels[kernel] then
+    if Jupyterm.kernels[kernel].show_win then
+      if Jupyterm.kernels[kernel].show_win.winid then
+        return true
+      else
+        return false
+      end
+    else
+      return false
+    end
+  else
+    return false
+  end
+end
+
+--- Checks if virtual text is showing.
+---@param kernel string
+---@return boolean true if showing, false otherwise
+---@private
+function utils.is_virt_text_showing(kernel)
+  if Jupyterm.kernels[kernel] then
+    if Jupyterm.kernels[kernel].virt_buf then
+      local extmarks = vim.api.nvim_buf_get_extmarks(
+        Jupyterm.kernels[kernel].virt_buf,
+        Jupyterm.ns_virt,
+        0,
+        -1,
+        {details = true}
+      )
+      if #extmarks > 0 then
+        return true
+      else
+        return false
+      end
+    else
+      return false
+    end
+  else
+    return false
+  end
+end
+
+
 ---Finds the kernel associated with the given buffer
 ---@param buf integer
 ---@return string?

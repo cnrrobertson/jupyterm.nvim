@@ -13,7 +13,7 @@ local display = {}
 --- Refreshes all repl windows.
 function display.refresh_windows()
   for k,_ in pairs(Jupyterm.kernels) do
-    if display.is_repl_showing(k) then
+    if utils.is_repl_showing(k) then
       -- Only refresh if not edited
       if not Jupyterm.kernels[k].edited then
         display.show_repl(k, false, Jupyterm.kernels[k].full)
@@ -25,48 +25,9 @@ end
 --- Refreshes all virtual text.
 function display.refresh_virt_text()
   for k,_ in pairs(Jupyterm.kernels) do
-    if display.is_virt_text_showing(k) then
+    if utils.is_virt_text_showing(k) then
       display.update_all_virt_text(k)
     end
-  end
-end
-
---- Checks if the repl buffer is showing.
----@param kernel string
----@return boolean true if showing, false otherwise
----@private
-function display.is_repl_showing(kernel)
-  if Jupyterm.kernels[kernel].show_win then
-    if Jupyterm.kernels[kernel].show_win.winid then
-      return true
-    else
-      return false
-    end
-  else
-    return false
-  end
-end
-
---- Checks if virtual text is showing.
----@param kernel string
----@return boolean true if showing, false otherwise
----@private
-function display.is_virt_text_showing(kernel)
-  if Jupyterm.kernels[kernel].virt_buf then
-    local extmarks = vim.api.nvim_buf_get_extmarks(
-      Jupyterm.kernels[kernel].virt_buf,
-      Jupyterm.ns_virt,
-      0,
-      -1,
-      {details = true}
-    )
-    if #extmarks > 0 then
-      return true
-    else
-      return false
-    end
-  else
-    return false
   end
 end
 
@@ -85,7 +46,7 @@ function display.toggle_repl(kernel, focus, full)
     manage_kernels.start_kernel(nil, nil, kernel_name)
   end
 
-  if display.is_repl_showing(kernel) then
+  if utils.is_repl_showing(kernel) then
     display.hide_repl(kernel)
   else
     display.show_repl(kernel, focus, full)
@@ -117,7 +78,7 @@ function display.show_repl(kernel, focus, full)
   -- Track previous location if showing
   local kernel_win = nil
   local win_view = nil
-  if display.is_repl_showing(kernel) then
+  if utils.is_repl_showing(kernel) then
     kernel_win = Jupyterm.kernels[kernel].show_win.winid
     win_view = vim.api.nvim_win_call(kernel_win, vim.fn.winsaveview)
   end
@@ -310,7 +271,7 @@ function display.toggle_virt_text(kernel)
     manage_kernels.start_kernel(nil, nil, kernel_name)
   end
 
-  if display.is_virt_text_showing(kernel) then
+  if utils.is_virt_text_showing(kernel) then
     display.hide_all_virt_text(kernel)
   else
     display.show_all_virt_text(kernel)

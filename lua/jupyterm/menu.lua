@@ -196,7 +196,7 @@ end
 ---@private
 function menu.submit(item)
   if item then
-    local was_shown = display.is_repl_showing(item.kernel)
+    local was_shown = utils.is_repl_showing(item.kernel)
     display.toggle_repl(item.kernel)
     if was_shown then menu.show_menu() end
   end
@@ -211,7 +211,7 @@ function menu.add_kernels(lines)
     for n,t in pairs(kernels) do
       local buf_name = n
       local pre_str = ""
-      if display.is_repl_showing(n) then
+      if utils.is_repl_showing(n) then
         pre_str = "* "
       end
       local display_text = pre_str..buf_name
