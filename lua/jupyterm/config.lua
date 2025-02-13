@@ -32,14 +32,16 @@ local config = {
   },
   -- UI options for the REPL window and the menu
   ui = {
-    format = "split",
-    config = {
     wait_str = "Computing...",
     queue_str = "Queued",
-      relative = "editor",
-      position = "right",
-      size = "40%",
-      enter = false
+    repl = {
+      format = "split",
+      config = {
+        relative = "editor",
+        position = "right",
+        size = "40%",
+        enter = false
+      },
     },
     max_displayed_lines = 500,
     menu = {
