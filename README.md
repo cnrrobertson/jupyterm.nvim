@@ -153,12 +153,16 @@ config = {
   },
   -- UI options for the REPL window and the menu
   ui = {
-    format = "split",
-    config = {
-      relative = "editor",
-      position = "right",
-      size = "40%",
-      enter = false
+    wait_str = "Computing...",
+    queue_str = "Queued",
+    repl = {
+      format = "split",
+      config = {
+        relative = "editor",
+        position = "right",
+        size = "40%",
+        enter = false
+      },
     },
     max_displayed_lines = 500,
     menu = {
