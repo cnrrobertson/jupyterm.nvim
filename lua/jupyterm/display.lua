@@ -93,7 +93,7 @@ function display.show_repl(kernel, focus, full)
     show_buf = Jupyterm.kernels[kernel].show_buf
     local kernel_name = Jupyterm.kernels[kernel].kernel_name
     utils.rename_buffer(show_buf, "jupyterm:"..kernel_name..":"..kernel)
-    vim.api.nvim_set_option_value("filetype", "jupyterm-"..kernel_name, {buf = show_buf})
+    vim.api.nvim_set_option_value("filetype", "jupyterm-repl-"..kernel_name, {buf = show_buf})
   end
   if show_win then
     Jupyterm.kernels[kernel].show_win.bufnr = show_buf
@@ -534,14 +534,12 @@ end
 function display.expand_virt_text(kernel, row)
   kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   row = row or vim.api.nvim_win_get_cursor(0)[1]-1
+
   local buf = Jupyterm.kernels[kernel].virt_buf
   local extmark = vim.api.nvim_buf_get_extmarks(buf, Jupyterm.ns_virt, {row,0}, {row,-1}, {details = true})[1]
-  local outputs = vim.fn.JupyOutput(tostring(kernel))[2]
-  local text = extmark[#extmark].virt_lines
-  local split_text = {}
-  for _,t in ipairs(text) do
-    table.insert(split_text, t[1])
-  end
+  local oloc = Jupyterm.kernels[kernel].virt_olocs[extmark[1]]
+  local output = vim.fn.JupyOutput(tostring(kernel))[2][oloc]
+  local kernel_name = Jupyterm.kernels[kernel].kernel_name
   local popup = Popup({
     position = {
       row = 0,
@@ -559,7 +557,7 @@ function display.expand_virt_text(kernel, row)
       buftype = "nofile",
       bufhidden = "hide",
       swapfile = false,
-      filetype = "jupyterm-python3"
+      filetype = "jupyterm-"..kernel_name
     },
     border = "solid"
   })
@@ -567,7 +565,8 @@ function display.expand_virt_text(kernel, row)
   popup:on("BufLeave", function()
     popup:unmount()
   end, {once = true})
-  vim.api.nvim_buf_set_lines(popup.bufnr, 0, 1, false, split_text)
+  local split_output = utils.split_by_newlines(output)
+  vim.api.nvim_buf_set_lines(popup.bufnr, 0, 1, false, split_output)
 end
 
 --- Navigates to the end of the output.

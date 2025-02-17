@@ -61,6 +61,9 @@
 ---   Toggles virtual text output in the range under the cursor.
 ---   `:Jupyter toggle_text_here kernel row?`
 ---
+---   Shows virtual text output in the range under the cursor in a popup window.
+---   `:Jupyter expand_text_here kernel row?`
+---
 --- Note that `kernel` generally refers to the kernel identifier in Neovim and not the `kernel_name` or the actual descriptor of a Jupyter kernel (e.g., `python3`, `ir`). Optional arguments can be omitted.
 ---
 --- # REPL ~
@@ -208,6 +211,12 @@ function Jupyterm.setup(opts)
         display.toggle_virt_text_at_row(unpack(args))
       end,
       complete = {"kernel", "row"}
+    },
+    expand_text_here = {
+      impl = function(args, opts)
+        display.expand_virt_text(unpack(args))
+      end,
+      complete = {"kernel", "row"}
     }
   }
 
@@ -248,11 +257,13 @@ function Jupyterm.setup(opts)
     range = true
   })
 
-  -- Set configs for REPL windows/buffers
+  -- Set configs for REPL/virtual text windows/buffers
   vim.api.nvim_create_autocmd("FileType", {
     group = "Jupyterm",
     pattern = "jupyterm-*",
-    callback = function()
+    callback = function(opts)
+      local pattern = opts.match
+
       -- Identify language
       local buf_name = vim.api.nvim_buf_get_name(0)
       local language = "python"
@@ -270,7 +281,7 @@ function Jupyterm.setup(opts)
       local status, _ = pcall(require, 'nvim-treesitter')
       Jupyterm.jupystring[bufnr] = "```"..language
       if status then
-        vim.treesitter.language.register("markdown", 'jupyterm-'..kernel_name)
+        vim.treesitter.language.register("markdown", pattern)
         vim.cmd[[TSBufEnable highlight]]
       else
         if vim.g.markdown_fenced_languages then
@@ -280,7 +291,12 @@ function Jupyterm.setup(opts)
         end
         vim.cmd("setlocal syntax=markdown")
       end
-
+    end
+  })
+  vim.api.nvim_create_autocmd("FileType", {
+    group = "Jupyterm",
+    pattern = "jupyterm-repl-*",
+    callback = function()
       -- Options and keybindings
       vim.bo.tabstop = 4
       vim.bo.shiftwidth = 4

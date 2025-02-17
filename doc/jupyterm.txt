@@ -63,6 +63,9 @@ User commands are shown below. Optional arguments are marked with a `?`:
   Toggles virtual text output in the range under the cursor.
   `:Jupyter toggle_text_here kernel row?`
 
+  Shows virtual text output in the range under the cursor in a popup window.
+  `:Jupyter expand_text_here kernel row?`
+
 Note that `kernel` generally refers to the kernel identifier in Neovim and not the `kernel_name` or the actual descriptor of a Jupyter kernel (e.g., `python3`, `ir`). Optional arguments can be omitted.
 
 # REPL ~

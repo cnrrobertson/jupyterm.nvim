@@ -93,17 +93,19 @@ See `:help packages` for more information.
 
 User commands are shown in the following table. Optional arguments are marked with a `?`:
 
-| Command                    | Arguments                        | Description                                                     |
-| ---------------            | --------------------------------- | --------------------------------------------------------------- |
-| `Jupyter start`            | `kernel`, `cwd?`, `kernel_name?`  | Starts a Jupyter kernel.  `cwd` and `kernel_name` are optional. |
-| `Jupyter shutdown`         | `kernel`                          | Shuts down a Jupyter kernel.                                    |
-| `Jupyter status`           | `kernel`                          | Checks the status of a Jupyter kernel.                          |
-| `Jupyter interrupt`        | `kernel`                          | Interrupts a Jupyter kernel.                                    |
-| `Jupyter execute`          | `kernel?`, `code?`                | Executes code in a specified kernel.                            |
-| `Jupyter menu`             | None                              | Toggles the Jupyter kernel menu.                                |
-| `Jupyter toggle_repl`      | `kernel?`, `focus?`, `full?`      | Toggles the REPL window for a kernel.                           |
-| `Jupyter toggle_text`      | `kernel?`                         | Toggles the display of virtual text outputs for a kernel.       |
-| `Jupyter toggle_text_here` | `kernel`, `row?`                  | Toggles virtual text output in the range under the cursor.      |
+| Command                    | Arguments                         | Description                                                                |
+| ---------------            | --------------------------------- | ---------------------------------------------------------------            |
+| `Jupyter start`            | `kernel`, `cwd?`, `kernel_name?`  | Starts a Jupyter kernel.  `cwd` and `kernel_name` are optional.            |
+| `Jupyter shutdown`         | `kernel`                          | Shuts down a Jupyter kernel.                                               |
+| `Jupyter status`           | `kernel`                          | Checks the status of a Jupyter kernel.                                     |
+| `Jupyter interrupt`        | `kernel`                          | Interrupts a Jupyter kernel.                                               |
+| `Jupyter execute`          | `kernel?`, `code?`                | Executes code in a specified kernel.                                       |
+| `Jupyter menu`             | None                              | Toggles the Jupyter kernel menu.                                           |
+| `Jupyter toggle_repl`      | `kernel?`, `focus?`, `full?`      | Toggles the REPL window for a kernel.                                      |
+| `Jupyter toggle_text`      | `kernel?`                         | Toggles the display of virtual text outputs for a kernel.                  |
+| `Jupyter toggle_text_here` | `kernel`, `row?`                  | Toggles virtual text output in the range under the cursor.                 |
+| `Jupyter expand_text_here` | `kernel`, `row?`                  | Shows virtual text output in the range under the cursor in a popup window. |
+
 
 Note that `kernel` generally refers to the kernel identifier in Neovim and not the `kernel_name` or the actual descriptor of a Jupyter kernel (e.g., `python3`, `ir`). Optional arguments can be omitted.
 
