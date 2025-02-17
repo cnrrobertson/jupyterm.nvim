@@ -47,6 +47,7 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
       virt_buf=nil,
       virt_text={},
       virt_olocs={},
+      virt_extmarks={},
     }
   end
 end

@@ -294,6 +294,8 @@ function display.hide_all_virt_text(kernel)
     0,
     -1
   )
+  Jupyterm.kernels[kernel].virt_olocs = {}
+  Jupyterm.kernels[kernel].virt_extmarks = {}
 end
 
 --- Updates all virtual text.
@@ -393,6 +395,11 @@ function display.show_virt_text(kernel, output_num, start_row, end_row, start_co
       })
     end
     Jupyterm.kernels[kernel].virt_olocs[virt_id] = output_num
+    if Jupyterm.kernels[kernel].virt_extmarks[output_num] then
+      table.insert(Jupyterm.kernels[kernel].virt_extmarks[output_num], virt_id)
+    else
+      Jupyterm.kernels[kernel].virt_extmarks[output_num] = {virt_id}
+    end
   end
   Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
 end
@@ -416,13 +423,12 @@ function display.toggle_virt_text_at_row(kernel, row)
 
   if #overlap_extmark > 0 then
     local oe = overlap_extmark[1]
-    local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {details = true})
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
-    for _,e in ipairs(extmarks) do
-      if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
-        if e[#e].virt_lines then
-          lines_showing = true
-        end
+    local extmarks = Jupyterm.kernels[kernel].virt_extmarks[oloc]
+    for _,e_id in ipairs(extmarks) do
+      local e = vim.api.nvim_buf_get_extmark_by_id(0, Jupyterm.ns_virt, e_id, {details=true})
+      if e[#e].virt_lines then
+        lines_showing = true
       end
     end
   end
@@ -445,14 +451,14 @@ function display.delete_virt_text(kernel, start_row, end_row)
 
   -- Delete extmarks in range
   local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, {start_row,0}, {end_row,0}, {details = true})
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {})
   for _,oe in ipairs(overlap_extmarks) do
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
-    for _,e in ipairs(extmarks) do
-      if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
-        vim.api.nvim_buf_del_extmark(0, Jupyterm.ns_virt, e[1])
-        Jupyterm.kernels[kernel].virt_olocs[e[1]] = nil
+    if Jupyterm.kernels[kernel].virt_extmarks[oloc] then
+      for _,e_id in ipairs(Jupyterm.kernels[kernel].virt_extmarks[oloc]) do
+        vim.api.nvim_buf_del_extmark(0, Jupyterm.ns_virt, e_id)
+        Jupyterm.kernels[kernel].virt_olocs[e_id] = nil
       end
+      Jupyterm.kernels[kernel].virt_extmarks[oloc] = {}
     end
   end
 end
@@ -464,20 +470,19 @@ end
 function display.hide_virt_text_at_row(kernel, row)
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
 
-  -- Delete extmarks in range
+  -- Update extmarks in range
   local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, {row,0}, {row,0}, {details = true})
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {details = true})
   for _,oe in ipairs(overlap_extmarks) do
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
-    for _,e in ipairs(extmarks) do
-      if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
-        vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, e[2], e[3], {
-          id = e[1],
-          sign_text = string.sub(tostring(oloc), -2, -1),
-          sign_hl_group = e[#e].sign_hl_group,
-          hl_group = e[#e].hl_group,
-        })
-      end
+    local extmarks = Jupyterm.kernels[kernel].virt_extmarks[oloc]
+    for _,e_id in ipairs(extmarks) do
+      local e = vim.api.nvim_buf_get_extmark_by_id(0, Jupyterm.ns_virt, e_id, {details=true})
+      vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, e[1], e[2], {
+        id = e_id,
+        sign_text = string.sub(tostring(oloc), -2, -1),
+        sign_hl_group = e[#e].sign_hl_group,
+        hl_group = e[#e].hl_group,
+      })
     end
   end
 end
