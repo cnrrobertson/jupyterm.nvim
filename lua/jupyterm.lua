@@ -362,6 +362,20 @@ function Jupyterm.setup(opts)
       end
     end
   })
+
+  -- Ensure virtual text is forgotten when buffer is closed
+  vim.api.nvim_create_autocmd({"BufDelete"}, {
+    group = "Jupyterm",
+    pattern = "*",
+    callback = function(opts)
+      local bufnr = opts.buf
+      for kernel, info in pairs(Jupyterm.kernels) do
+        if info.virt_buf == bufnr then
+          Jupyterm.kernels[kernel].virt_buf = nil
+        end
+      end
+    end
+  })
 end
 
 _G.Jupyterm = Jupyterm
