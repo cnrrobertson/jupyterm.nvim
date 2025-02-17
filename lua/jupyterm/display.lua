@@ -37,7 +37,7 @@ end
 ---@param full boolean? whether to display the full output
 function display.toggle_repl(kernel, focus, full)
   -- Use buffer id as default
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
 
   -- Auto start if not started
   if not Jupyterm.kernels[kernel] then
@@ -57,7 +57,7 @@ end
 ---@param kernel string?
 function display.hide_repl(kernel)
   -- Use buffer id as default
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
 
   if Jupyterm.kernels[kernel] then
     Jupyterm.kernels[kernel].show_win:hide()
@@ -73,7 +73,7 @@ function display.show_repl(kernel, focus, full)
     focus = Jupyterm.config.focus_on_show
   end
   -- Refresh current window if repl window
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
 
   -- Track previous location if showing
   local kernel_win = nil
@@ -262,7 +262,7 @@ end
 ---@param kernel string?
 function display.toggle_virt_text(kernel)
   -- Use buffer id as default
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
 
   -- Auto start if not started
   if not Jupyterm.kernels[kernel] then
@@ -406,7 +406,7 @@ end
 ---@param kernel? string
 ---@param row? integer
 function display.toggle_virt_text_at_row(kernel, row)
-  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()]
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
 
   local overlap_extmark = vim.api.nvim_buf_get_extmarks(
@@ -537,7 +537,7 @@ end
 ---@param kernel? string
 ---@param row? integer
 function display.expand_virt_text(kernel, row)
-  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()]
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   row = row or vim.api.nvim_win_get_cursor(0)[1]-1
   local buf = Jupyterm.kernels[kernel].virt_buf
   local extmark = vim.api.nvim_buf_get_extmarks(buf, Jupyterm.ns_virt, {row,0}, {row,-1}, {details = true})[1]
@@ -598,7 +598,7 @@ end
 --- Jumps to the previous display block.
 ---@param kernel string?
 function display.jump_display_block_up(kernel)
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   local cur_line = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)[1]
   local out_above = utils.get_extmark_above(cur_line, Jupyterm.ns_out)[2]
   local in_above = utils.get_extmark_above(cur_line, Jupyterm.ns_in)[2]
@@ -620,7 +620,7 @@ end
 --- Jumps to the next display block.
 ---@param kernel string?
 function display.jump_display_block_down(kernel)
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
   local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_in, {cursor[1],0}, {-1,0}, {details=true})
   for _,e in ipairs(extmarks) do

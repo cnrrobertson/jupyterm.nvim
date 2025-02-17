@@ -45,7 +45,7 @@ end
 --- Shuts down a Jupyter kernel.
 ---@param kernel string?
 function manage_kernels.shutdown_kernel(kernel)
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   if utils.is_repl_showing(kernel) then
     Jupyterm.kernels[kernel].show_win:unmount()
   end
@@ -64,14 +64,14 @@ end
 --- Interrupts a Jupyter kernel.
 ---@param kernel string?
 function manage_kernels.interrupt_kernel(kernel)
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   vim.fn.JupyInterrupt(tostring(kernel))
 end
 
 --- Checks the status of a Jupyter kernel.
 ---@param kernel string?
 function manage_kernels.check_kernel_status(kernel)
-  kernel = kernel or utils.get_kernel_buf_or_buf()
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   vim.fn.JupyStatus(tostring(kernel))
 end
 
