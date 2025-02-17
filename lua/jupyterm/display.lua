@@ -69,7 +69,9 @@ end
 ---@param focus boolean? whether to focus the repl window
 ---@param full boolean? whether to display the full output
 function display.show_repl(kernel, focus, full)
-  focus = focus or Jupyterm.config.focus_on_show
+  if focus == nil then
+    focus = Jupyterm.config.focus_on_show
+  end
   -- Refresh current window if repl window
   kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
 
