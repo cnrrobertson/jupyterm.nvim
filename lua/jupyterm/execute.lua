@@ -132,7 +132,7 @@ function execute.send_line(kernel)
     end_col = nil,
     hl = nil
   }
-  if Jupyterm.config.inline_display then
+  if Jupyterm.config.inline_display and Jupyterm.kernels[kernel].show_virt then
     display.show_virt_text(kernel, nil, row-1, row-1)
   end
 end
@@ -171,7 +171,7 @@ function execute.send_lines(kernel, start_line, end_line)
     end_col = nil,
     hl = nil
   }
-  if Jupyterm.config.inline_display then
+  if Jupyterm.config.inline_display and Jupyterm.kernels[kernel].show_virt then
     display.show_virt_text(kernel, nil, start_line-1, end_line-1)
   end
 end
@@ -205,7 +205,7 @@ function execute.send_selection(kernel, line, start_col, end_col)
     end_col = end_col,
     hl = "CursorLine"
   }
-  if Jupyterm.config.inline_display then
+  if Jupyterm.config.inline_display and Jupyterm.kernels[kernel].show_virt then
     display.show_virt_text(kernel, output_length, line-1, line-1, start_col-1, end_col, "CursorLine")
   end
 end

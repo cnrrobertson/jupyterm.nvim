@@ -283,6 +283,7 @@ function display.show_all_virt_text(kernel)
     local vt = Jupyterm.kernels[kernel].virt_text[oloc]
     display.show_virt_text(kernel, oloc, vt.start_row, vt.end_row, vt.start_col, vt.end_col, vt.hl)
   end
+  Jupyterm.kernels[kernel].show_virt = true
 end
 
 --- Hides all virtual text.
@@ -296,6 +297,7 @@ function display.hide_all_virt_text(kernel)
   )
   Jupyterm.kernels[kernel].virt_olocs = {}
   Jupyterm.kernels[kernel].virt_extmarks = {}
+  Jupyterm.kernels[kernel].show_virt = false
 end
 
 --- Updates all virtual text.

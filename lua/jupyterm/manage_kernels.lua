@@ -44,6 +44,7 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
       show_win=nil,
       show_buf=nil,
       show_full_output=nil,
+      show_virt=true,
       virt_buf=nil,
       virt_text={},
       virt_olocs={},
