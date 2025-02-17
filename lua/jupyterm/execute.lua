@@ -97,7 +97,7 @@ end
 ---@private
 function execute.select_send_term()
   local buf = vim.api.nvim_get_current_buf()
-  local kernel = manage_kernels.select_kernel() or utils.get_kernel_buf_or_buf()
+  local kernel = manage_kernels.select_kernel()
   if Jupyterm.kernels[kernel] == nil then
     manage_kernels.start_kernel(kernel)
   end
