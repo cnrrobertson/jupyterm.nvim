@@ -283,7 +283,9 @@ end
 function display.show_all_virt_text(kernel)
   for oloc=1,vim.fn.JupyOutputLen(tostring(kernel)) do
     local vt = Jupyterm.kernels[kernel].virt_text[oloc]
-    display.show_virt_text(kernel, oloc, vt.start_row, vt.end_row, vt.start_col, vt.end_col, vt.hl)
+    if vt then
+      display.show_virt_text(kernel, oloc, vt.start_row, vt.end_row, vt.start_col, vt.end_col, vt.hl)
+    end
   end
   Jupyterm.kernels[kernel].show_virt = true
 end
