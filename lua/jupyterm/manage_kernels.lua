@@ -38,7 +38,16 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
     local queue_str = Jupyterm.config.ui.queue_str
     local wait_str = Jupyterm.config.ui.wait_str
     vim.fn.JupyStart(kernel, cwd, kernel_name, wait_str, queue_str)
-    Jupyterm.kernels[kernel] = {kernel_name=kernel_name}
+    Jupyterm.kernels[kernel] = {
+      kernel_name=kernel_name,
+      edited=nil,
+      show_win=nil,
+      show_buf=nil,
+      show_full_output=nil,
+      virt_buf=nil,
+      virt_text={},
+      virt_olocs={},
+    }
   end
 end
 

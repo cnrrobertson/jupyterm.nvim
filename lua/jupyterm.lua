@@ -273,10 +273,10 @@ function Jupyterm.setup(opts)
         vim.treesitter.language.register("markdown", 'jupyterm-'..kernel_name)
         vim.cmd[[TSBufEnable highlight]]
       else
-        if vim.g.markdown_fenced_languages == nil then
-          vim.g.markdown_fenced_languages = {language}
-        else
+        if vim.g.markdown_fenced_languages then
           table.insert(vim.g.markdown_fenced_languages, language)
+        else
+          vim.g.markdown_fenced_languages = {language}
         end
         vim.cmd("setlocal syntax=markdown")
       end

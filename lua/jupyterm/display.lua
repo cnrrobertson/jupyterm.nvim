@@ -16,7 +16,7 @@ function display.refresh_windows()
     if utils.is_repl_showing(k) then
       -- Only refresh if not edited
       if not Jupyterm.kernels[k].edited then
-        display.show_repl(k, false, Jupyterm.kernels[k].full)
+        display.show_repl(k, false, Jupyterm.kernels[k].show_full_output)
       end
     end
   end
@@ -69,9 +69,7 @@ end
 ---@param focus boolean? whether to focus the repl window
 ---@param full boolean? whether to display the full output
 function display.show_repl(kernel, focus, full)
-  if focus == nil then
-    focus = Jupyterm.config.focus_on_show
-  end
+  focus = focus or Jupyterm.config.focus_on_show
   -- Refresh current window if repl window
   kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
 
@@ -86,16 +84,20 @@ function display.show_repl(kernel, focus, full)
   -- Check if window already exists
   local show_buf = Jupyterm.kernels[kernel].show_buf
   local show_win = Jupyterm.kernels[kernel].show_win
-  if show_buf == nil then
+  if show_buf then
+    vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
+  else
     Jupyterm.kernels[kernel].show_buf = vim.api.nvim_create_buf(false, true)
     show_buf = Jupyterm.kernels[kernel].show_buf
     local kernel_name = Jupyterm.kernels[kernel].kernel_name
     utils.rename_buffer(show_buf, "jupyterm:"..kernel_name..":"..kernel)
     vim.api.nvim_set_option_value("filetype", "jupyterm-"..kernel_name, {buf = show_buf})
-  else
-    vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
   end
-  if show_win == nil then
+  if show_win then
+    Jupyterm.kernels[kernel].show_win.bufnr = show_buf
+    Jupyterm.kernels[kernel].show_win:mount()
+    Jupyterm.kernels[kernel].show_win:show()
+  else
     if Jupyterm.config.ui.repl.format == "split" then
       Jupyterm.kernels[kernel].show_win = Split(Jupyterm.config.ui.repl.config)
     else
@@ -104,10 +106,6 @@ function display.show_repl(kernel, focus, full)
     Jupyterm.kernels[kernel].show_win.bufnr = show_buf
     Jupyterm.kernels[kernel].show_win:mount()
     show_win = Jupyterm.kernels[kernel].show_win
-  else
-    Jupyterm.kernels[kernel].show_win.bufnr = show_buf
-    Jupyterm.kernels[kernel].show_win:mount()
-    Jupyterm.kernels[kernel].show_win:show()
   end
 
   -- Get and display inputs/outputs
@@ -150,9 +148,9 @@ function display.show_repl(kernel, focus, full)
     -- Check for long display
     local buf_count = vim.api.nvim_buf_line_count(show_buf)
     if full then
-      Jupyterm.kernels[kernel].full = true
+      Jupyterm.kernels[kernel].show_full_output = true
     else
-      Jupyterm.kernels[kernel].full = false
+      Jupyterm.kernels[kernel].show_full_output = false
       if buf_count > Jupyterm.config.ui.max_displayed_lines then
         break
       end
@@ -394,9 +392,6 @@ function display.show_virt_text(kernel, output_num, start_row, end_row, start_co
         hl_group = hl,
       })
     end
-    if Jupyterm.kernels[kernel].virt_olocs == nil then
-      Jupyterm.kernels[kernel].virt_olocs = {}
-    end
     Jupyterm.kernels[kernel].virt_olocs[virt_id] = output_num
   end
   Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
@@ -422,9 +417,6 @@ function display.toggle_virt_text_at_row(kernel, row)
   if #overlap_extmark > 0 then
     local oe = overlap_extmark[1]
     local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {details = true})
-    if Jupyterm.kernels[kernel].virt_olocs == nil then
-      Jupyterm.kernels[kernel].virt_olocs = {}
-    end
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
     for _,e in ipairs(extmarks) do
       if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
@@ -455,9 +447,6 @@ function display.delete_virt_text(kernel, start_row, end_row)
   local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, {start_row,0}, {end_row,0}, {details = true})
   local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {})
   for _,oe in ipairs(overlap_extmarks) do
-    if Jupyterm.kernels[kernel].virt_olocs == nil then
-      Jupyterm.kernels[kernel].virt_olocs = {}
-    end
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
     for _,e in ipairs(extmarks) do
       if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then
@@ -479,9 +468,6 @@ function display.hide_virt_text_at_row(kernel, row)
   local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, {row,0}, {row,0}, {details = true})
   local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, 0, -1, {details = true})
   for _,oe in ipairs(overlap_extmarks) do
-    if Jupyterm.kernels[kernel].virt_olocs == nil then
-      Jupyterm.kernels[kernel].virt_olocs = {}
-    end
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
     for _,e in ipairs(extmarks) do
       if Jupyterm.kernels[kernel].virt_olocs[e[1]] == oloc then

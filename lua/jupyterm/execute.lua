@@ -80,15 +80,15 @@ end
 ---@return string kernel
 ---@private
 function execute.save_kernel_location(kernel)
-  if kernel == nil then
+  if kernel then
+    return kernel
+  else
     local buf = vim.api.nvim_get_current_buf()
     if Jupyterm.send_memory[buf] then
       return Jupyterm.send_memory[buf]
     else
       return execute.select_send_term()
     end
-  else
-    return kernel
   end
 end
 
@@ -124,9 +124,6 @@ function execute.send_line(kernel)
 
   -- Store virtual text information
   local output_length = vim.fn.JupyOutputLen(tostring(kernel))
-  if Jupyterm.kernels[kernel].virt_text == nil then
-    Jupyterm.kernels[kernel].virt_text = {}
-  end
   Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
   Jupyterm.kernels[kernel].virt_text[output_length] = {
     start_row = row-1,
@@ -166,9 +163,6 @@ function execute.send_lines(kernel, start_line, end_line)
 
   -- Store virtual text information
   local output_length = vim.fn.JupyOutputLen(tostring(kernel))
-  if Jupyterm.kernels[kernel].virt_text == nil then
-    Jupyterm.kernels[kernel].virt_text = {}
-  end
   Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
   Jupyterm.kernels[kernel].virt_text[output_length] = {
     start_row = start_line-1,
@@ -203,9 +197,6 @@ function execute.send_selection(kernel, line, start_col, end_col)
 
   -- Store virtual text information
   local output_length = vim.fn.JupyOutputLen(tostring(kernel))
-  if Jupyterm.kernels[kernel].virt_text == nil then
-    Jupyterm.kernels[kernel].virt_text = {}
-  end
   Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
   Jupyterm.kernels[kernel].virt_text[output_length] = {
     start_row = line-1,
