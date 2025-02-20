@@ -65,7 +65,7 @@ end
 ---@param kernel string?
 function manage_kernels.shutdown_kernel(kernel)
   kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
-  if utils.is_repl_showing(kernel) then
+  if Jupyterm.kernels[kernel].show_win then
     Jupyterm.kernels[kernel].show_win:unmount()
   end
   if utils.is_virt_text_showing(kernel) then
