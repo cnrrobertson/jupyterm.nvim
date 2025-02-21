@@ -16,7 +16,7 @@ function display.refresh_windows()
     if utils.is_repl_showing(k) then
       -- Only refresh if not edited
       if not Jupyterm.kernels[k].edited then
-        display.show_repl(k, false, Jupyterm.kernels[k].show_full_output)
+        display.update_repl(k)
       end
     end
   end
@@ -214,6 +214,66 @@ function display.generate_cell(commentstring, index, type)
     ), {}
   )
   return line1, line2
+end
+
+--- Updates the repl buffer.
+---@param kernel string?
+function display.update_repl(kernel)
+  kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
+
+  local show_buf = Jupyterm.kernels[kernel].show_buf
+  if not show_buf then
+    return
+  end
+
+  local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
+  local inputs = kernel_lines[1]
+  local outputs = kernel_lines[2]
+
+  -- Get the extmarks in the buffer
+  local in_top_marks = vim.api.nvim_buf_get_extmarks(show_buf, Jupyterm.ns_in_top, 0, -1, {details = true})
+
+  -- Iterate through the extmarks in reverse order and update the buffer if necessary
+  for i = #in_top_marks-1, 1, -1 do
+    local e = in_top_marks[i]
+    local extmark_id = e[1]
+    local extmark_row = e[2]
+    local extmark_col = e[3]
+    local extmark_details = e[4]
+
+    -- Check for ghost extmarks
+    if extmark_row ~= 0 then
+      -- Get the corresponding input or output index
+      local index = tonumber(string.match(extmark_details.virt_lines[2][1][1], "%d+"))
+
+      -- Check for/update output cell
+      local out_top = utils.get_extmark_below(extmark_row, Jupyterm.ns_out_top)
+      local out_bottom = utils.get_extmark_below(extmark_row, Jupyterm.ns_out_bottom)
+      if out_top and out_bottom then
+        local split_output = utils.split_by_newlines(outputs[index])
+        local previous_output = vim.api.nvim_buf_get_lines(show_buf, out_top[2]+1, out_bottom[2], false)
+        if split_output ~= previous_output then
+          vim.api.nvim_buf_set_lines(show_buf, out_top[2]+1, out_bottom[2], false, split_output)
+        end
+        if (#previous_output == 1) and (utils.strip(previous_output[1]) == "") then
+          vim.api.nvim_buf_set_lines(show_buf, out_top[2], out_bottom[2]+1, false, {})
+          vim.api.nvim_buf_del_extmark(show_buf, Jupyterm.ns_out_top, out_top[1])
+          vim.api.nvim_buf_del_extmark(show_buf, Jupyterm.ns_out_bottom, out_bottom[1])
+        end
+      end
+
+      -- Update input cell
+      local in_bottom = utils.get_extmark_below(extmark_row, Jupyterm.ns_in_bottom)
+      if in_bottom then
+        local input = inputs[index]
+        local previous_input = vim.api.nvim_buf_get_lines(show_buf, extmark_row+1, in_bottom[2], false)
+        if input ~= table.concat(previous_input, "\n") then
+          local split_input = utils.split_by_newlines(input)
+          vim.api.nvim_buf_set_lines(show_buf, extmark_row+1, in_bottom[2], false, split_input)
+        end
+      end
+    end
+  end
 end
 
 --- Toggles a keymap help menu for repl

@@ -52,7 +52,7 @@ local config = {
         {"n", "<cr>", execute.send_display_block, "Send display block"},
         {"n", "[c", display.jump_display_block_up, "Jump up one display block"},
         {"n", "]c", display.jump_display_block_down, "Jump down one display block"},
-        {"n", "<esc>", function() display.show_repl(nil, true) end, "Refresh"},
+        {"n", "<esc>", display.update_repl, "Refresh"},
         {"n", "<c-c>", manage_kernels.interrupt_kernel, "Interrupt"},
         {"n", "<c-q>", manage_kernels.shutdown_kernel, "Shutdown"},
         {"n", "?", display.show_repl_help, "Help"},
