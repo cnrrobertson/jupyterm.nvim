@@ -118,29 +118,7 @@ function display.show_repl(kernel, focus, full)
   -- Display empty display_block
   local bufnr = Jupyterm.kernels[kernel].show_win.bufnr
   local commentstring = Jupyterm.jupystring[bufnr]
-  local final_txt = Line()
-  final_txt:append(
-    Text(
-          commentstring,
-          {
-            hl_group="JupytermInText",
-            hl_mode = "combine",
-            hl_eol = true,
-            virt_lines_above = true,
-            virt_lines = {
-              {{
-                "───────────────────────────────────────────────────────────────",
-                "JupytermInText"
-              }},
-              {{
-                string.format("In [%s]: ", #input+1),
-                "JupytermInText"
-              }},
-            }
-          }
-    ),
-    {}
-  )
+  local final_txt,_ = display.generate_cell(commentstring, #input+1, "In")
   vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {"",""})
   final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, 2)
 
@@ -161,38 +139,7 @@ function display.show_repl(kernel, focus, full)
     local o = output[ind]
 
     -- Display outputs
-    local out_txt = Line()
-    out_txt:append(
-      Text(
-        commentstring,
-        {
-          hl_group="JupytermOutText",
-          hl_mode = "combine",
-          hl_eol = true,
-          virt_lines_above = true,
-          virt_lines = {
-            {{
-              "───────────────────────────────",
-              "JupytermOutText"
-            }},
-            {{
-              string.format("Out [%s]:", ind),
-              "JupytermOutText"
-            }},
-          }
-        }
-      ), {}
-    )
-    local out_txt2 = Line()
-    out_txt2:append(
-      Text(
-        "```",
-        {
-          hl_group="JupytermOutText",
-          hl_mode = "combine",
-        }
-      ), {}
-    )
+    local out_txt, out_txt2 = display.generate_cell(commentstring, ind, "Out")
     local split_o = utils.split_by_newlines(o)
     if #split_o > Jupyterm.config.ui.max_displayed_lines then
       split_o = {unpack(split_o, #split_o-Jupyterm.config.ui.max_displayed_lines+1, #split_o)}
@@ -207,39 +154,7 @@ function display.show_repl(kernel, focus, full)
 
     -- Display inputs
     local split_i = utils.split_by_newlines(i)
-    local in_txt = Line()
-    in_txt:append(
-      Text(
-            commentstring,
-            {
-              hl_group="JupytermInText",
-              hl_mode = "combine",
-              hl_eol = true,
-              virt_lines_above = true,
-              virt_lines = {
-                {{
-                  "───────────────────────────────────────────────────────────────",
-                  "JupytermInText"
-                }},
-                {{
-                  string.format("In [%s]: ", ind),
-                  "JupytermInText"
-                }},
-              }
-            }
-      ),
-      {}
-    )
-    local in_txt2 = Line()
-    in_txt2:append(
-      Text(
-        "```",
-        {
-          hl_group="JupytermInText",
-          hl_mode = "combine",
-        }
-      ), {}
-    )
+    local in_txt, in_txt2 = display.generate_cell(commentstring, ind, "In")
     vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
     in_txt2:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, 2)
     vim.api.nvim_buf_set_lines(show_buf, 1, 1, false, split_i)
@@ -256,6 +171,49 @@ function display.show_repl(kernel, focus, full)
 
   -- Reset edited status
   Jupyterm.kernels[kernel].edited = nil
+end
+
+--- Generates cell text
+---@param commentstring string
+---@param index integer cell number
+---@param type string input or output cell - "In" or "Out" respectively
+---@return Line
+---@overload fun(commentstring: string, index: integer, type: string): Line,Line
+---@private
+function display.generate_cell(commentstring, index, type)
+  local line1 = Line()
+  line1:append(
+    Text(
+      commentstring,
+      {
+        hl_group="Jupyterm"..type.."Text",
+        hl_mode = "combine",
+        hl_eol = true,
+        virt_lines_above = true,
+        virt_lines = {
+          {{
+            "───────────────────────────────────────────────────────────────",
+            "Jupyterm"..type.."Text"
+          }},
+          {{
+            string.format(type.." [%s]: ", index),
+            "Jupyterm"..type.."Text"
+          }},
+        }
+      }
+    ), {}
+  )
+  local line2 = Line()
+  line2:append(
+    Text(
+      "```",
+      {
+        hl_group="Jupyterm"..type.."Text",
+        hl_mode = "combine",
+      }
+    ), {}
+  )
+  return line1, line2
 end
 
 --- Toggles a keymap help menu for repl
