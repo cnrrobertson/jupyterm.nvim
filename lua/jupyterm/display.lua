@@ -120,7 +120,7 @@ function display.show_repl(kernel, focus, full)
   local commentstring = Jupyterm.jupystring[bufnr]
   local final_txt,_ = display.generate_cell(commentstring, #input+1, "In")
   vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {"",""})
-  final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, 2)
+  final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in_top, 2)
 
   -- Display previous display_blocks
   for ind = #input, 1, -1 do
@@ -146,20 +146,20 @@ function display.show_repl(kernel, focus, full)
     end
     if (#split_o ~= 1) or (utils.strip(split_o[1]) ~= "") then
       vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
-      out_txt2:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, 2)
+      out_txt2:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out_bottom, 2)
       vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, split_o)
       vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
-      out_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out, 2)
+      out_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_out_top, 2)
     end
 
     -- Display inputs
     local split_i = utils.split_by_newlines(i)
     local in_txt, in_txt2 = display.generate_cell(commentstring, ind, "In")
     vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
-    in_txt2:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in, 2)
+    in_txt2:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in_bottom, 2)
     vim.api.nvim_buf_set_lines(show_buf, 1, 1, false, split_i)
     vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {""})
-    in_txt:render(show_buf, Jupyterm.ns_in, 2)
+    in_txt:render(show_buf, Jupyterm.ns_in_top, 2)
   end
 
   -- Navigate to end
@@ -610,35 +610,24 @@ end
 function display.jump_display_block_up(kernel)
   kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
   local cur_line = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)[1]
-  local out_above = utils.get_extmark_above(cur_line, Jupyterm.ns_out)[2]
-  local in_above = utils.get_extmark_above(cur_line, Jupyterm.ns_in)[2]
+  local out_above = utils.get_extmark_above(cur_line, Jupyterm.ns_out_top)[2]
+  local in_above = utils.get_extmark_above(cur_line, Jupyterm.ns_in_top)[2]
   if in_above > out_above then
     cur_line = in_above-1
   else
     cur_line = out_above
   end
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_in, {1,0}, {cur_line,0}, {details=true})
-  for i=#extmarks, 1, -1 do
-    local e = extmarks[i]
-    if e[#e].virt_lines then
-      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {e[2]+2, 0})
-      return
-    end
-  end
+  in_above = utils.get_extmark_above(cur_line, Jupyterm.ns_in_top)[2]
+  vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {in_above+2, 0})
 end
 
 --- Jumps to the next display block.
 ---@param kernel string?
 function display.jump_display_block_down(kernel)
   kernel = kernel or Jupyterm.send_memory[vim.api.nvim_get_current_buf()] or utils.get_kernel_buf_or_buf()
-  local cursor = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)
-  local extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_in, {cursor[1],0}, {-1,0}, {details=true})
-  for _,e in ipairs(extmarks) do
-    if e[#e].virt_lines then
-      vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {e[2]+2, 0})
-      return
-    end
-  end
+  local cur_line = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)[1]
+  local in_below = utils.get_extmark_below(cur_line, Jupyterm.ns_in_top)[2]
+  vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {in_below+2, 0})
 end
 
 return display
