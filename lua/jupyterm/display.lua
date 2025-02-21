@@ -2,8 +2,8 @@
 ---@signature Jupyterm.display
 local Split = require("nui.split")
 local Popup = require("nui.popup")
-local NuiLine = require("nui.line")
-local NuiText = require("nui.text")
+local Line = require("nui.line")
+local Text = require("nui.text")
 
 local utils = require("jupyterm.utils")
 local manage_kernels = require("jupyterm.manage_kernels")
@@ -118,9 +118,9 @@ function display.show_repl(kernel, focus, full)
   -- Display empty display_block
   local bufnr = Jupyterm.kernels[kernel].show_win.bufnr
   local commentstring = Jupyterm.jupystring[bufnr]
-  local final_txt = NuiLine()
+  local final_txt = Line()
   final_txt:append(
-    NuiText(
+    Text(
           commentstring,
           {
             hl_group="JupytermInText",
@@ -161,9 +161,9 @@ function display.show_repl(kernel, focus, full)
     local o = output[ind]
 
     -- Display outputs
-    local out_txt = NuiLine()
+    local out_txt = Line()
     out_txt:append(
-      NuiText(
+      Text(
         commentstring,
         {
           hl_group="JupytermOutText",
@@ -183,9 +183,9 @@ function display.show_repl(kernel, focus, full)
         }
       ), {}
     )
-    local out_txt2 = NuiLine()
+    local out_txt2 = Line()
     out_txt2:append(
-      NuiText(
+      Text(
         "```",
         {
           hl_group="JupytermOutText",
@@ -207,9 +207,9 @@ function display.show_repl(kernel, focus, full)
 
     -- Display inputs
     local split_i = utils.split_by_newlines(i)
-    local in_txt = NuiLine()
+    local in_txt = Line()
     in_txt:append(
-      NuiText(
+      Text(
             commentstring,
             {
               hl_group="JupytermInText",
@@ -230,9 +230,9 @@ function display.show_repl(kernel, focus, full)
       ),
       {}
     )
-    local in_txt2 = NuiLine()
+    local in_txt2 = Line()
     in_txt2:append(
-      NuiText(
+      Text(
         "```",
         {
           hl_group="JupytermInText",
@@ -256,6 +256,62 @@ function display.show_repl(kernel, focus, full)
 
   -- Reset edited status
   Jupyterm.kernels[kernel].edited = nil
+end
+
+--- Toggles a keymap help menu for repl
+---@param kernel string?
+function display.show_repl_help(kernel)
+  kernel = kernel or utils.get_kernel_buf_or_buf()
+
+  if utils.is_repl_showing(kernel) then
+    local bufnr = Jupyterm.kernels[kernel].show_win.bufnr
+    local popup_opts = {
+      position = {
+        row = 2,
+        col = 0,
+      },
+      anchor = "NW",
+      relative = "cursor",
+      size = {
+        width = "50%",
+        height = #Jupyterm.config.ui.repl.keymaps,
+      },
+      buf_options = {
+        modifiable = false,
+        readonly = true,
+        buftype = "nofile",
+        bufhidden = "hide",
+        swapfile = false,
+      },
+      border = {
+        style = "double",
+        text = {
+          top = "REPL Help",
+          top_align = "center",
+        },
+      },
+      enter = false,
+      focusable = false,
+    }
+    local help_menu = Popup(popup_opts)
+    for i,k in ipairs(Jupyterm.config.ui.repl.keymaps) do
+      local h = Line({
+        Text(k[4], "Title"),
+        Text(": ", "Title"),
+        Text(k[2], "SpecialKey")
+      })
+      h:render(help_menu.bufnr, help_menu.ns_id, i)
+    end
+    vim.api.nvim_create_autocmd({"ModeChanged", "CursorMoved"}, {
+      group = "Jupyterm",
+      callback = function()
+        help_menu:unmount()
+      end,
+      once=true,
+      buffer=bufnr
+    })
+    help_menu:mount()
+  end
 end
 
 --- Toggles virtual text.
