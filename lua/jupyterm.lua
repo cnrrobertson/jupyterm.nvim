@@ -301,12 +301,9 @@ function Jupyterm.setup(opts)
       vim.bo.tabstop = 4
       vim.bo.shiftwidth = 4
       vim.bo.expandtab = true
-      vim.keymap.set("n", "<cr>", execute.send_display_block, {desc="Send display block", buffer=0})
-      vim.keymap.set("n", "[c", display.jump_display_block_up, {desc="Jump up one display block", buffer=0})
-      vim.keymap.set("n", "]c", display.jump_display_block_down, {desc="Jump down one display block", buffer=0})
-      vim.keymap.set("n", "<esc>", function() display.show_repl(nil, true) end, {desc="Refresh", buffer=0})
-      vim.keymap.set("n", "<c-c>", manage_kernels.interrupt_kernel, {desc="Interrupt", buffer=0})
-      vim.keymap.set("n", "<c-q>", manage_kernels.shutdown_kernel, {desc="Shutdown", buffer=0})
+      for _,k in ipairs(Jupyterm.config.ui.repl.keymaps) do
+        vim.keymap.set(k[1], k[2], k[3], {desc=k[4], buffer=0})
+      end
     end
   })
 

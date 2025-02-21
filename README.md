@@ -165,6 +165,15 @@ config = {
         size = "40%",
         enter = false
       },
+      keymaps = {
+        {"n", "<cr>", execute.send_display_block, "Send display block"},
+        {"n", "[c", display.jump_display_block_up, "Jump up one display block"},
+        {"n", "]c", display.jump_display_block_down, "Jump down one display block"},
+        {"n", "<esc>", function() display.show_repl(nil, true) end, "Refresh"},
+        {"n", "<c-c>", manage_kernels.interrupt_kernel, "Interrupt"},
+        {"n", "<c-q>", manage_kernels.shutdown_kernel, "Shutdown"},
+        {"n", "?", display.show_repl_help, "Help"},
+      }
     },
     max_displayed_lines = 500,
     menu = {

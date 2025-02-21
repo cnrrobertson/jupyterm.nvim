@@ -150,6 +150,15 @@ Default values:
           size = "40%",
           enter = false
         },
+        keymaps = {
+          {"n", "<cr>", execute.send_display_block, "Send display block"},
+          {"n", "[c", display.jump_display_block_up, "Jump up one display block"},
+          {"n", "]c", display.jump_display_block_down, "Jump down one display block"},
+          {"n", "<esc>", function() display.show_repl(nil, true) end, "Refresh"},
+          {"n", "<c-c>", manage_kernels.interrupt_kernel, "Interrupt"},
+          {"n", "<c-q>", manage_kernels.shutdown_kernel, "Shutdown"},
+          {"n", "?", display.show_repl_help, "Help"},
+        }
       },
       max_displayed_lines = 500,
       menu = {
@@ -180,10 +189,12 @@ Default values:
 
 ------------------------------------------------------------------------------
                                                 *manage_kernels.select_kernel()*
-                        `manage_kernels.select_kernel`()
+                     `manage_kernels.select_kernel`({new})
 Selects a kernel from the available kernels.
+Parameters ~
+{new} `(boolean?)`
 Return ~
-`(string)` `(optional)`
+`(string)`
 
 ------------------------------------------------------------------------------
                                                  *manage_kernels.start_kernel()*
@@ -191,7 +202,7 @@ Return ~
 Starts a Jupyter kernel.
 Parameters ~
 {kernel} `(string?)`
-{cwd} `(string?)`
+{cwd} `(string?)` where the kernel should start, default: buffer location
 {kernel_name} `(string?)`
 
 ------------------------------------------------------------------------------
@@ -312,6 +323,13 @@ Parameters ~
 {kernel} `(string?)`
 {focus} `(boolean?)` whether to focus the repl window
 {full} `(boolean?)` whether to display the full output
+
+------------------------------------------------------------------------------
+                                                      *display.show_repl_help()*
+                       `display.show_repl_help`({kernel})
+Toggles a keymap help menu for repl
+Parameters ~
+{kernel} `(string?)`
 
 ------------------------------------------------------------------------------
                                                     *display.toggle_virt_text()*
