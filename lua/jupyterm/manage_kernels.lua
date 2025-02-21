@@ -5,26 +5,37 @@ local utils = require("jupyterm.utils")
 local manage_kernels = {}
 
 --- Selects a kernel from the available kernels.
+---@param new boolean?
 ---@return string
-function manage_kernels.select_kernel()
+function manage_kernels.select_kernel(new)
   local kernel_keys = vim.tbl_keys(Jupyterm.kernels)
   local return_val = nil
-  if #kernel_keys > 0 then
-    vim.ui.select(kernel_keys, {
-      prompt = "Select a kernel: ",
-    }, function(choice)
-        if choice then
-          return_val = tostring(choice)
+  if new then
+    vim.ui.input({
+      prompt = "New kernel name: ",
+      default = utils.get_kernel_buf_or_buf(),
+    }, function(name)
+        if name then
+          return_val = tostring(name)
         end
       end
     )
-  else
+  elseif #kernel_keys == 0 then
     vim.ui.input({
       prompt = "No kernels running! New kernel name: ",
       default = utils.get_kernel_buf_or_buf(),
     }, function(name)
         if name then
           return_val = tostring(name)
+        end
+      end
+    )
+  else
+    vim.ui.select(kernel_keys, {
+      prompt = "Select a kernel: ",
+    }, function(choice)
+        if choice then
+          return_val = tostring(choice)
         end
       end
     )
@@ -37,7 +48,7 @@ end
 ---@param cwd string? where the kernel should start, default: buffer location
 ---@param kernel_name string?
 function manage_kernels.start_kernel(kernel, cwd, kernel_name)
-  kernel = kernel or manage_kernels.select_kernel()
+  kernel = kernel or manage_kernels.select_kernel(true)
   cwd = cwd or vim.fn.expand("%:p:h")
   if Jupyterm.kernels[kernel] then
     vim.print("Kernel "..kernel.." has already been started.")
