@@ -612,10 +612,12 @@ function display.jump_display_block_up(kernel)
   local cur_line = vim.api.nvim_win_get_cursor(Jupyterm.kernels[kernel].show_win.winid)[1]
   local out_above = utils.get_extmark_above(cur_line, Jupyterm.ns_out_top)[2]
   local in_above = utils.get_extmark_above(cur_line, Jupyterm.ns_in_top)[2]
-  if in_above > out_above then
+  if out_above and (in_above > out_above) then
     cur_line = in_above-1
-  else
+  elseif out_above then
     cur_line = out_above
+  else
+    cur_line = in_above-1
   end
   in_above = utils.get_extmark_above(cur_line, Jupyterm.ns_in_top)[2]
   vim.api.nvim_win_set_cursor(Jupyterm.kernels[kernel].show_win.winid, {in_above+2, 0})
