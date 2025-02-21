@@ -85,6 +85,13 @@
 ---
 --- These keybindings make interacting with the REPL buffer intuitive and efficient.
 ---
+--- The REPL buffer uses a markdown filetype which allows for convenient syntax highlighting and for display blocks to be folded using the `treesitter` `foldexpr`. For example:
+---
+---   vim.o.foldmethod = "expr"
+---   vim.o.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+---   vim.o.foldlevel = 99
+---   vim.o.foldnestmax = 4
+---
 --- # Highlight groups ~
 ---
 --- * `JupytermInText` - Titles of input blocks in REPL buffer

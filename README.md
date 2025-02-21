@@ -130,6 +130,15 @@ The REPL buffer also comes with default keybindings for convenience:
 
 These keybindings make interacting with the REPL buffer intuitive and efficient.
 
+e REPL buffer uses a markdown filetype which allows for convenient syntax highlighting and for display blocks to be folded using the `treesitter` `foldexpr`. For example:
+
+```lua
+vim.o.foldmethod = "expr"
+vim.o.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+vim.o.foldlevel = 99
+vim.o.foldnestmax = 4
+```
+
 ## Default Configuration
 
 You can input custom settings by calling `require("jupyterm").setup(my_config)` where `my_config` is a table containing your custom options.

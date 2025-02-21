@@ -87,6 +87,13 @@ The REPL buffer also comes with default keybindings for convenience:
 
 These keybindings make interacting with the REPL buffer intuitive and efficient.
 
+The REPL buffer uses a markdown filetype which allows for convenient syntax highlighting and for display blocks to be folded using the `treesitter` `foldexpr`. For example:
+
+  vim.o.foldmethod = "expr"
+  vim.o.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+  vim.o.foldlevel = 99
+  vim.o.foldnestmax = 4
+
 # Highlight groups ~
 
 * `JupytermInText` - Titles of input blocks in REPL buffer
@@ -154,7 +161,7 @@ Default values:
           {"n", "<cr>", execute.send_display_block, "Send display block"},
           {"n", "[c", display.jump_display_block_up, "Jump up one display block"},
           {"n", "]c", display.jump_display_block_down, "Jump down one display block"},
-          {"n", "<esc>", function() display.show_repl(nil, true) end, "Refresh"},
+          {"n", "<esc>", display.update_repl, "Refresh"},
           {"n", "<c-c>", manage_kernels.interrupt_kernel, "Interrupt"},
           {"n", "<c-q>", manage_kernels.shutdown_kernel, "Shutdown"},
           {"n", "?", display.show_repl_help, "Help"},
@@ -241,11 +248,6 @@ Parameters ~
 {code} `(string)` The code to send.
 
 ------------------------------------------------------------------------------
-                                                  *execute.send_display_block()*
-                         `execute.send_display_block`()
-Sends current repl block of code to a Jupyter kernel.
-
-------------------------------------------------------------------------------
                                                          *execute.send_select()*
                      `execute.send_select`({kernel}, {cmd})
 Sends code to a selected kernel.
@@ -323,6 +325,13 @@ Parameters ~
 {kernel} `(string?)`
 {focus} `(boolean?)` whether to focus the repl window
 {full} `(boolean?)` whether to display the full output
+
+------------------------------------------------------------------------------
+                                                         *display.update_repl()*
+                        `display.update_repl`({kernel})
+Updates the repl buffer.
+Parameters ~
+{kernel} `(string?)`
 
 ------------------------------------------------------------------------------
                                                       *display.show_repl_help()*
