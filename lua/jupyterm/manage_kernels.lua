@@ -88,6 +88,11 @@ function manage_kernels.shutdown_kernel(kernel)
     )
   end
   Jupyterm.kernels[kernel] = nil
+  for b,k in pairs(Jupyterm.send_memory) do
+    if k == kernel then
+      Jupyterm.send_memory[b] = nil
+    end
+  end
   vim.fn.JupyShutdown(tostring(kernel))
 end
 
