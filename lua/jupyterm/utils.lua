@@ -92,6 +92,21 @@ function utils.get_kernel_buf_or_buf()
   return utils.get_kernel_if_in_kernel_buf() or kernel_buf_name
 end
 
+---Gets kernel in this order:
+---1. Kernel passed in
+---2. Last kernel sent to
+---3. Kernel if in output buffer
+---4. New kernel
+function utils.get_kernel(kernel)
+  local memory = Jupyterm.send_memory[vim.api.nvim_get_current_buf()]
+  local name = utils.get_kernel_buf_or_buf()
+  if not (kernel or memory) then
+    local buf = vim.api.nvim_get_current_buf()
+    Jupyterm.send_memory[buf] = name
+  end
+  return kernel or memory or name
+end
+
 ---Splits a string by newlines
 ---@param input string
 ---@return string[]
