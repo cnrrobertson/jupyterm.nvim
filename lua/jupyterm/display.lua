@@ -347,8 +347,10 @@ function display.toggle_virt_text(kernel)
 
   if utils.is_virt_text_showing(kernel) then
     display.hide_all_virt_text(kernel)
+    Jupyterm.kernels[kernel].show_virt = false
   else
     display.show_all_virt_text(kernel)
+    Jupyterm.kernels[kernel].show_virt = true
   end
 end
 
@@ -361,7 +363,6 @@ function display.show_all_virt_text(kernel)
       display.show_virt_text(kernel, oloc, vt.start_row, vt.end_row, vt.start_col, vt.end_col, vt.hl)
     end
   end
-  Jupyterm.kernels[kernel].show_virt = true
 end
 
 --- Hides all virtual text.
@@ -375,7 +376,6 @@ function display.hide_all_virt_text(kernel)
   )
   Jupyterm.kernels[kernel].virt_olocs = {}
   Jupyterm.kernels[kernel].virt_extmarks = {}
-  Jupyterm.kernels[kernel].show_virt = false
 end
 
 --- Updates all virtual text.

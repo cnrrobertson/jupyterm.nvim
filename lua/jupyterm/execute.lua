@@ -102,6 +102,11 @@ function execute.select_send_term()
   if Jupyterm.kernels[kernel] == nil then
     manage_kernels.start_kernel(kernel)
   end
+  local memory = Jupyterm.send_memory[buf]
+  if memory and (memory ~= kernel) then
+    display.hide_all_virt_text(memory)
+    Jupyterm.kernels[memory].virt_buf = nil
+  end
   Jupyterm.send_memory[buf] = kernel
   return kernel
 end
