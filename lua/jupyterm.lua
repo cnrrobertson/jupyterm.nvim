@@ -191,9 +191,18 @@ function Jupyterm.setup(opts)
         if opts.count > -1 then
           execute.send_lines(args[1], opts.line1, opts.line2)
         elseif (opts.count == -1) and #opts.fargs > 2 then
-          execute.send(args[1], table.concat(opts.fargs, "", 3, #opts.fargs))
+          if args[1] == "select" then
+            execute.send_select(nil, table.concat(opts.fargs, "", 3, #opts.fargs))
+          else
+            execute.send(args[1], table.concat(opts.fargs, "", 3, #opts.fargs))
+          end
         else
-          execute.send_line(args[1])
+          if args[1] == "select" then
+            local kernel = execute.select_send_term()
+            execute.send_line(kernel)
+          else
+            execute.send_line(args[1])
+          end
         end
       end,
       complete = {"kernel", "code"}
