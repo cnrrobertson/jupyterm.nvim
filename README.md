@@ -219,5 +219,11 @@ config = {
 
 ## Complementary Plugins
 
-* [notebook-navigator.nvim](https://github.com/GCBallesteros/NotebookNavigator.nvim): Provides a notebook mode for moving between cells. Facilitates editing and sending cell text. Integrates with this plugin.
+* [notebook-navigator.nvim](https://github.com/GCBallesteros/NotebookNavigator.nvim): Provides a notebook mode for moving between cells. Facilitates editing and sending cell text. Integrates with this plugin:
+```lua
+local nn = require("notebook-navigator")
+nn.setup({
+  repl_provider="jupyterm",
+})
+```
 * [jupytext.nvim](https://github.com/goerz/jupytext.nvim): Automatically convert opened `.ipynb` notebook files to scripts with cell delimiters.
