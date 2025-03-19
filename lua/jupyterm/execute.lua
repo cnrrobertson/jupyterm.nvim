@@ -102,6 +102,7 @@ function execute.select_send_term()
   if Jupyterm.kernels[kernel] == nil then
     manage_kernels.start_kernel(kernel)
   end
+  -- Save buffer send location if using default kernel name
   local memory = Jupyterm.send_memory[buf]
   if memory and (memory ~= kernel) then
     display.hide_all_virt_text(memory)

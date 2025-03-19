@@ -53,6 +53,11 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
   if Jupyterm.kernels[kernel] then
     vim.print("Kernel "..kernel.." has already been started.")
   else
+    -- Save buffer send location if using default kernel name
+    if kernel == utils.get_kernel_buf_or_buf() then
+      local buf = vim.api.nvim_get_current_buf()
+      Jupyterm.send_memory[buf] = kernel
+    end
     kernel_name = kernel_name or Jupyterm.config.default_kernel
     local queue_str = Jupyterm.config.ui.queue_str
     local wait_str = Jupyterm.config.ui.wait_str
