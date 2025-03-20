@@ -410,6 +410,8 @@ function display.update_all_virt_text(kernel)
         sign_text = e[#e].sign_text,
         sign_hl_group = text_hl_group,
         hl_group = e[#e].hl_group,
+        invalidate = true,
+        undo_restore = false,
       })
     else
       vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], {
@@ -417,6 +419,8 @@ function display.update_all_virt_text(kernel)
         sign_text = e[#e].sign_text,
         sign_hl_group = text_hl_group,
         hl_group = e[#e].hl_group,
+        invalidate = true,
+        undo_restore = false,
       })
     end
   end
@@ -466,12 +470,16 @@ function display.show_virt_text(kernel, output_num, start_row, end_row, start_co
         sign_text = string.sub(tostring(output_num), -2, -1),
         sign_hl_group = text_hl_group,
         hl_group = hl,
+        invalidate = true,
+        undo_restore = false,
       })
     else
       virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, 0, {
         sign_text = string.sub(tostring(output_num), -2, -1),
         sign_hl_group = text_hl_group,
         hl_group = hl,
+        invalidate = true,
+        undo_restore = false,
       })
     end
     Jupyterm.kernels[kernel].virt_olocs[virt_id] = output_num
@@ -562,6 +570,8 @@ function display.hide_virt_text_at_row(kernel, row)
         sign_text = string.sub(tostring(oloc), -2, -1),
         sign_hl_group = e[#e].sign_hl_group,
         hl_group = e[#e].hl_group,
+        invalidate = true,
+        undo_restore = false,
       })
     end
   end
