@@ -247,28 +247,30 @@ function display.update_repl(kernel)
     -- Check for ghost extmarks
     if extmark_row ~= 0 then
       -- Get the corresponding input or output index
-      local index = tonumber(string.match(extmark_details.virt_lines[2][1][1], "%d+"))
+      local in_index = tonumber(string.match(extmark_details.virt_lines[2][1][1], "%d+"))
 
       -- Check for/update output cell
       local out_top = utils.get_extmark_below(extmark_row, Jupyterm.ns_out_top)
       local out_bottom = utils.get_extmark_below(extmark_row, Jupyterm.ns_out_bottom)
       if out_top and out_bottom then
-        local split_output = utils.split_by_newlines(outputs[index])
-        local previous_output = vim.api.nvim_buf_get_lines(show_buf, out_top[2]+1, out_bottom[2], false)
-        if split_output ~= previous_output then
-          vim.api.nvim_buf_set_lines(show_buf, out_top[2]+1, out_bottom[2], false, split_output)
-        end
-        if (#previous_output == 1) and (utils.strip(previous_output[1]) == "") then
-          vim.api.nvim_buf_set_lines(show_buf, out_top[2], out_bottom[2]+1, false, {})
-          vim.api.nvim_buf_del_extmark(show_buf, Jupyterm.ns_out_top, out_top[1])
-          vim.api.nvim_buf_del_extmark(show_buf, Jupyterm.ns_out_bottom, out_bottom[1])
+        local out_index = tonumber(string.match(out_top[4].virt_lines[2][1][1], "%d+"))
+        if in_index == out_index then
+          local split_output = utils.split_by_newlines(outputs[in_index])
+          local previous_output = vim.api.nvim_buf_get_lines(show_buf, out_top[2]+1, out_bottom[2], false)
+          if table.concat(split_output, "\n") ~= table.concat(previous_output, "\n") then
+            vim.api.nvim_buf_set_lines(show_buf, out_top[2]+1, out_bottom[2], false, split_output)
+          elseif (#previous_output == 1) and (utils.strip(previous_output[1]) == "") then
+            vim.api.nvim_buf_set_lines(show_buf, out_top[2], out_bottom[2]+1, false, {})
+            vim.api.nvim_buf_del_extmark(show_buf, Jupyterm.ns_out_top, out_top[1])
+            vim.api.nvim_buf_del_extmark(show_buf, Jupyterm.ns_out_bottom, out_bottom[1])
+          end
         end
       end
 
       -- Update input cell
       local in_bottom = utils.get_extmark_below(extmark_row, Jupyterm.ns_in_bottom)
       if in_bottom then
-        local input = inputs[index]
+        local input = inputs[in_index]
         local previous_input = vim.api.nvim_buf_get_lines(show_buf, extmark_row+1, in_bottom[2], false)
         if input ~= table.concat(previous_input, "\n") then
           local split_input = utils.split_by_newlines(input)
