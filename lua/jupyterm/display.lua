@@ -88,6 +88,9 @@ function display.show_repl(kernel, focus, full)
   local show_win = Jupyterm.kernels[kernel].show_win
   if show_buf then
     vim.api.nvim_buf_set_lines(show_buf, 0, -1, false, {})
+    -- Remove hanging cell extmarks
+    vim.api.nvim_buf_clear_namespace(show_buf, Jupyterm.ns_in_top, 0, -1)
+    vim.api.nvim_buf_clear_namespace(show_buf, Jupyterm.ns_out_top, 0, -1)
   else
     Jupyterm.kernels[kernel].show_buf = vim.api.nvim_create_buf(false, true)
     show_buf = Jupyterm.kernels[kernel].show_buf
