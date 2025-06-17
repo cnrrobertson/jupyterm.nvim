@@ -656,7 +656,12 @@ function display.expand_virt_text(kernel, row)
       swapfile = false,
       filetype = "jupyterm-"..kernel_name
     },
-    border = "solid"
+    win_options = {
+      winhighlight = "FloatBorder:"..extmark[4].sign_hl_group,
+    },
+    border = {
+      style="double"
+    }
   })
   popup:mount()
   popup:on("BufLeave", function()
