@@ -64,6 +64,14 @@ function display.hide_repl(kernel)
   end
 end
 
+function display.display_end_block(kernel, input)
+  local bufnr = Jupyterm.kernels[kernel].show_win.bufnr
+  local commentstring = Jupyterm.jupystring[bufnr]
+  local final_txt,_ = display.generate_cell(commentstring, #input+1, "In")
+  vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {"",""})
+  final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in_top, 2)
+end
+
 --- Shows the repl buffer.
 ---@param kernel string?
 ---@param focus boolean? whether to focus the repl window
@@ -119,13 +127,11 @@ function display.show_repl(kernel, focus, full)
   local output = kernel_lines[2]
 
   -- Display empty display_block
-  local bufnr = Jupyterm.kernels[kernel].show_win.bufnr
-  local commentstring = Jupyterm.jupystring[bufnr]
-  local final_txt,_ = display.generate_cell(commentstring, #input+1, "In")
-  vim.api.nvim_buf_set_lines(Jupyterm.kernels[kernel].show_buf, 1, 1, false, {"",""})
-  final_txt:render(Jupyterm.kernels[kernel].show_buf, Jupyterm.ns_in_top, 2)
+  display.display_end_block(kernel, input)
 
   -- Display previous display_blocks
+  local bufnr = Jupyterm.kernels[kernel].show_win.bufnr
+  local commentstring = Jupyterm.jupystring[bufnr]
   for ind = #input, 1, -1 do
 
     -- Check for long display

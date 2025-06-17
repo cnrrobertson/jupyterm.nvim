@@ -101,6 +101,34 @@ function manage_kernels.shutdown_kernel(kernel)
   vim.fn.JupyShutdown(tostring(kernel))
 end
 
+--- Restarts a Jupyter kernel.
+---@param kernel string?
+function manage_kernels.restart_kernel(kernel)
+  kernel = utils.get_kernel(kernel)
+  if utils.is_virt_text_showing(kernel) then
+    vim.api.nvim_buf_clear_namespace(
+      Jupyterm.kernels[kernel].virt_buf,
+      Jupyterm.ns_virt,
+      0,
+      -1
+    )
+  end
+  Jupyterm.kernels[kernel].virt_text = {}
+  Jupyterm.kernels[kernel].virt_olocs = {}
+  Jupyterm.kernels[kernel].virt_extmarks = {}
+  vim.fn.JupyRestart(tostring(kernel))
+  if Jupyterm.kernels[kernel].show_win then
+    -- Jupyterm.kernels[kernel].show_win:unmount()
+    local buf = Jupyterm.kernels[kernel].show_buf
+    if buf and vim.api.nvim_buf_is_valid(buf) then
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
+    end
+    local display = require("jupyterm.display")
+    display.display_end_block(kernel, {})
+    display.navigate_to_repl_end(kernel)
+  end
+end
+
 --- Interrupts a Jupyter kernel.
 ---@param kernel string?
 function manage_kernels.interrupt_kernel(kernel)

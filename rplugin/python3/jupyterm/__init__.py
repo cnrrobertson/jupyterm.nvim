@@ -88,6 +88,16 @@ class Jupyterm(object):
         else:
             self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
 
+    @pynvim.function("JupyRestart", sync=False)
+    def restart(self, args):
+        kernel_name = args[0]
+        if self._check_kernel(kernel_name):
+            kernel = self.kernels[kernel_name]
+            kernel.restart()
+            self.nvim.out_write(f"Kernel '{kernel_name}' restarted.\n")
+        else:
+            self.nvim.out_write(f"Kernel '{kernel_name}' is not running.\n")
+
     @pynvim.function("JupyStatus", sync=True)
     def status(self, args):
         kernel_name = args[0]
@@ -270,3 +280,8 @@ class Kernel(object):
     def shutdown(self):
         self.kc.stop_channels()
         self.km.shutdown_kernel()
+
+    def restart(self):
+        self.inputs = []
+        self.outputs = []
+        self.km.restart_kernel()

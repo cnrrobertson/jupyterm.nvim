@@ -8,7 +8,7 @@ MIT License Copyright (c) 2025 Connor Robertson
 ===========================================================================
 
 Key features:
-- Start, interrupt, and shutdown Jupyter kernels effortlessly.
+- Start, interrupt, shutdown, and restart Jupyter kernels effortlessly.
 - Send code blocks or selections to a selected kernel.
 - View Jupyter outputs in REPL buffers or as virtual text inline with your code.
 - Supports multiple languages via their respective Jupyter kernels (Python, R, Julia, etc.)
@@ -26,7 +26,7 @@ See |Jupyterm.config| for available config settings.
 
   2. Send Code: `:Jupyter execute <kernel>` will send the current line to the kernel. Visual selection then `:'<,'>Jupyter execute <kernel>` will send the selection to the kernel. Alternatively, send code directly via `:Jupyter execute <kernel> <code>`.  See the `lua` API in the help file for `send_line`, `send_visual`, `send_select`, and `send_file` from `require("jupyterm.execute")` to send the current line, visual selection, to a selected kernel, and the entire current buffer respectively.
 
-  3. Manage Kernels: Use `:Jupyter status`, `:Jupyter interrupt`, `:Jupyter shutdown`, and `:Jupyter menu` to check the status, interrupt execution, shutdown a kernel, or view active kernels in an interactive popup menu.
+  3. Manage Kernels: Use `:Jupyter status`, `:Jupyter interrupt`, `:Jupyter shutdown`, `:Jupyter restart`, and `:Jupyter menu` to check the status, interrupt execution, shutdown a kernel, restart a kernel, or view active kernels in an interactive popup menu.
 
   4. Output Display: Outputs will appear in a dedicated REPL buffer or inline, depending on your configuration (`jupyterm.config.inline_display`). You can also use `:Jupyter toggle_repl` and `:Jupyter toggle_text` to manage the REPL buffer and virtual text respectively. Use `:Jupyter toggle_text_here` to toggle individual inline outputs.
 
@@ -41,6 +41,9 @@ User commands are shown below. Optional arguments are marked with a `?`:
 
   Shuts down a Jupyter kernel.
   `:Jupyter shutdown kernel`
+
+  Restarts a Jupyter kernel.
+  `:Jupyter restart kernel`
 
   Checks the status of a Jupyter kernel.
   `:Jupyter status kernel`
@@ -216,6 +219,13 @@ Parameters ~
                                               *manage_kernels.shutdown_kernel()*
                    `manage_kernels.shutdown_kernel`({kernel})
 Shuts down a Jupyter kernel.
+Parameters ~
+{kernel} `(string?)`
+
+------------------------------------------------------------------------------
+                                               *manage_kernels.restart_kernel()*
+                   `manage_kernels.restart_kernel`({kernel})
+Restarts a Jupyter kernel.
 Parameters ~
 {kernel} `(string?)`
 
