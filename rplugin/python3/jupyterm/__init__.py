@@ -10,6 +10,8 @@ except ImportError:
 import threading
 import queue
 import re
+import time
+import datetime
 
 @pynvim.plugin
 class Jupyterm(object):
@@ -113,6 +115,9 @@ class Kernel(object):
         self.nvim = nvim
         self.inputs = []
         self.outputs = []
+        self.start_times = []
+        self.durations = []
+        self.duration_timers = {}
         self.cwd = cwd
         self.kernel_name = kernel_name
         self.lock = threading.Lock()
@@ -136,7 +141,7 @@ class Kernel(object):
         while True:
             code,oloc = self.queue.get()
             with self.lock:
-                self.outputs[oloc] = self.wait_str
+                self.outputs[oloc] = self.wait_str + " (-)"
             if len(code) > 0:
                 if (code.strip()[0] == "?") | (code.strip()[-1] == "?"):
                     iopub = threading.Thread(target=self.handle_helpdoc, args=(code, oloc))
@@ -145,6 +150,8 @@ class Kernel(object):
                 else:
                     iopub = threading.Thread(target=self.listen_to_iopub, args=(oloc,))
                     iopub.start()
+                    with self.lock:
+                        self.start_times[oloc] = time.time()
                     self.kc.execute(code)
                     iopub.join()
             else:
@@ -156,6 +163,8 @@ class Kernel(object):
         with self.lock:
             self.inputs.append(code)
             self.outputs.append(self.queue_str)
+            self.start_times.append(time.time())
+            self.durations.append(0)
             oloc = len(self.outputs) - 1
             self.queue.put((code, oloc))
 
@@ -168,10 +177,20 @@ class Kernel(object):
             else:
                 self.outputs[oloc] = "No info from kernel."
 
+    def timer_update(self, oloc):
+        while self.duration_timers.get(oloc, False):
+            with self.lock:
+                self.durations[oloc] = time.time() - self.start_times[oloc]
+                self.update_output(oloc, "")
+            time.sleep(0.5)
+
     def listen_to_iopub(self, oloc):
         seen_input = False
         seen_output = False
         idle = False
+        self.duration_timers[oloc] = True
+        timer_thread = threading.Thread(target=self.timer_update, args=(oloc,))
+        timer_thread.start()
         while not (seen_input and seen_output and idle):
             try:
                 msg = self.kc.get_iopub_msg()
@@ -180,6 +199,8 @@ class Kernel(object):
             except Exception as e:
                 self.nvim.async_call(self.nvim.out_write, f"IOPub error: {str(e)}\n")
                 pass
+        self.duration_timers[oloc] = False
+        timer_thread.join()
 
     def handle_iopub_message(self, msg, seen_input, seen_output, oloc):
         with self.lock:
@@ -234,16 +255,21 @@ class Kernel(object):
                 return
 
         # Remove wait_str
-        output = output.replace(self.wait_str, "")
+        output = re.sub(rf"{re.escape(self.wait_str)}(?:\s\(.+\))?", "", output)
 
         # Deal with ANSI control characters
         processed_addition = self.handle_ansi_cc(new_addition)
 
         # Finish
-        if final:
-            self.outputs[oloc] = output + processed_addition
+        duration = datetime.timedelta(seconds=self.durations[oloc])
+        if duration < datetime.timedelta(seconds=1):
+            duration = ""
         else:
-            self.outputs[oloc] = output + processed_addition + self.wait_str
+            duration = f" (Elapsed: {duration})"
+        if final:
+            self.outputs[oloc] = output + processed_addition + duration[1:]
+        else:
+            self.outputs[oloc] = output + processed_addition + self.wait_str + duration
 
     def handle_image_display(self, content, oloc):
         img_data = content["data"].get("image/png")
@@ -267,7 +293,7 @@ class Kernel(object):
 
     def get_input_output(self):
         with self.lock:
-            return self.inputs, self.outputs
+            return self.inputs, self.outputs, self.durations
 
     def get_output_len(self):
         with self.lock:
