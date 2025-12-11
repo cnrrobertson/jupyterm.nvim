@@ -208,6 +208,7 @@ config = {
 
 ## Similar Plugins
 
+* [quench.nvim](https://github.com/ryan-ressmeyer/quench.nvim): Basically identical plugin except it displays in the browser rather than inline or in embedded repl.
 * [vim-jukit](https://github.com/luk400/vim-jukit): Single Jupyter kernel. Very nice REPL buffer display. Allows displaying outputs with uberzug and saving outputs to file. Built on ipython repl.
 * [molten-nvim](https://github.com/benlubas/molten-nvim): Transforms buffer into a notebook. Run cells and see output inline.
 * [jupynium.nvim](https://github.com/kiyoon/jupynium.nvim): Edit a buffer with notebook cells and update a running Jupyter notebook in a browser with Selenium.
