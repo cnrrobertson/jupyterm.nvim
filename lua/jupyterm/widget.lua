@@ -31,38 +31,29 @@ function widget.create(kernel)
     win_nrs = {},
   }
 
-  for _, bufnr in ipairs({ output_buf, input_buf }) do
-    vim.api.nvim_create_autocmd("BufWinLeave", {
+  local aug = vim.api.nvim_create_augroup("JupytermWidget_" .. kernel, { clear = true })
+
+  -- QuitPre fires before :q/:qa on the current window regardless of buftype/filetype.
+  -- Intercept it on all widget buffers to hide the whole widget instead.
+  for _, bufnr in ipairs({ output_buf, vars_buf, input_buf }) do
+    vim.api.nvim_create_autocmd("QuitPre", {
+      group = aug,
       buffer = bufnr,
       callback = function()
-        -- Ignore BufWinLeave that fires when the input popup opens/closes
-        if widget._popping_input then return end
-        local w2 = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
-        if w2 and w2._popup_win then return end
+        -- If the current window is the input popup, just close the popup
+        local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+        if w and w._popup_win and vim.api.nvim_win_is_valid(w._popup_win)
+          and vim.api.nvim_get_current_win() == w._popup_win
+        then
+          widget.pop_input_close(kernel)
+          -- Abort the quit so only the popup closes
+          vim.api.nvim_command("silent! noautocmd 1wincmd k")
+          return
+        end
         widget.hide(kernel)
       end,
     })
   end
-
-  -- QuitPre closes sibling widget windows so :q/:qa can proceed normally
-  vim.api.nvim_create_autocmd("QuitPre", {
-    buffer = output_buf,
-    callback = function()
-      widget._close_siblings(kernel, "output")
-    end,
-  })
-  vim.api.nvim_create_autocmd("QuitPre", {
-    buffer = input_buf,
-    callback = function()
-      local w2 = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
-      -- If the window being quit is the popup, close only the popup
-      if w2 and w2._popup_win and vim.fn.win_getid() == w2._popup_win then
-        widget.pop_input_close(kernel)
-        return
-      end
-      widget._close_siblings(kernel, "input")
-    end,
-  })
 end
 
 --- Binds keymaps on the input buffer.
@@ -105,7 +96,10 @@ function widget.show(kernel, focus)
   end
 
   local w = Jupyterm.kernels[kernel].widget
-  if not w then
+  if not w
+    or not vim.api.nvim_buf_is_valid(w.buf_nrs.output)
+    or not vim.api.nvim_buf_is_valid(w.buf_nrs.input)
+  then
     widget.create(kernel)
     w = Jupyterm.kernels[kernel].widget
   end
@@ -147,71 +141,40 @@ function widget.show(kernel, focus)
   end
 end
 
---- Closes all widget windows except the given pane.
---- Used by QuitPre so :q/:qa can close the remaining window naturally.
----@param kernel string
----@param except string pane name to keep ("output" or "input")
----@private
-function widget._close_siblings(kernel, except)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
-  if not w then return end
-  -- If the popup is open, :q on the popup window should just close the popup
-  if widget._popping_input then return end
-  widget._closing = true
-  for _, winid in pairs(w.win_nrs) do
-    if winid and vim.api.nvim_win_is_valid(winid) then
-      pcall(vim.api.nvim_set_option_value, "winfixbuf", false, { win = winid })
-    end
+--- Returns the first window on the current tabpage not belonging to this widget.
+---@param win_nrs table
+---@return integer|nil
+local function find_non_widget_window(win_nrs)
+  local widget_wins = {}
+  for _, winid in pairs(win_nrs) do
+    if winid then widget_wins[winid] = true end
   end
-  for name, winid in pairs(w.win_nrs) do
-    if name ~= except and winid and vim.api.nvim_win_is_valid(winid) then
-      w.win_nrs[name] = nil
-      pcall(vim.api.nvim_win_close, winid, true)
-    end
+  for _, winid in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if not widget_wins[winid] then return winid end
   end
-  widget._closing = false
 end
 
 --- Hides all widget windows for a kernel (preserves buffers).
 ---@param kernel string
 function widget.hide(kernel)
-  if widget._closing or widget._popping_input then return end
+  if widget._popping_input then return end
   local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
   if not w then return end
 
-  local any_open = false
-  for _, winid in pairs(w.win_nrs) do
+  -- Ensure there is a non-widget window to land on so closing widget windows
+  -- never triggers the "cannot close last window" error (mirrors agentic.nvim).
+  if not find_non_widget_window(w.win_nrs) then
+    vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true, {
+      split = "left", win = -1,
+    })
+  end
+
+  local wins = vim.tbl_extend("force", {}, w.win_nrs)
+  w.win_nrs = {}
+  for _, winid in pairs(wins) do
     if winid and vim.api.nvim_win_is_valid(winid) then
-      any_open = true
-      break
+      pcall(vim.api.nvim_win_close, winid, true)
     end
-  end
-  if not any_open then
-    for name, _ in pairs(w.win_nrs) do
-      w.win_nrs[name] = nil
-    end
-    return
-  end
-
-  -- Ensure a non-widget window exists so we don't close the last window
-  local widget_wins = {}
-  for _, winid in pairs(w.win_nrs) do
-    if winid then widget_wins[winid] = true end
-  end
-  local has_fallback = false
-  for _, winid in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if not widget_wins[winid] then
-      has_fallback = true
-      break
-    end
-  end
-  if not has_fallback and vim.v.dying == 0 and vim.v.exiting == vim.NIL then
-    vim.cmd("topleft vnew")
-  end
-
-  for name, winid in pairs(w.win_nrs) do
-    w.win_nrs[name] = nil
-    pcall(vim.api.nvim_win_close, winid, true)
   end
 end
 
@@ -245,6 +208,7 @@ function widget.destroy(kernel)
   local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
   if not w then return end
 
+  pcall(vim.api.nvim_del_augroup_by_name, "JupytermWidget_" .. kernel)
   widget_layout.close_all(w.win_nrs)
 
   for _, bufnr in pairs(w.buf_nrs) do
@@ -285,17 +249,10 @@ function widget.toggle_variables(kernel)
 end
 
 --- Closes the input popup if open, without hiding the main widget.
---- Called by keymaps, QuitPre, and BufWinLeave guards.
 ---@param kernel string
 function widget.pop_input_close(kernel)
   local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
   if not w or not w._popup_win then return end
-  if not vim.api.nvim_win_is_valid(w._popup_win) then
-    w._popup_win = nil
-    w._popup_border_win = nil
-    w._popup_border_buf = nil
-    return
-  end
   widget._popping_input = true
   local content_win  = w._popup_win
   local border_win   = w._popup_border_win
@@ -368,20 +325,28 @@ function widget.pop_input(kernel)
   })
 
   vim.api.nvim_set_option_value("winbar",
-    "%#Title# Input %*  %#Comment#<CR> run  q/<Esc> close%*",
+    "%#Title# Input %*  %#Comment#<CR> run  <Esc> close%*",
     { win = content_win })
 
   w._popup_win        = content_win
   w._popup_border_win = border_win
   w._popup_border_buf = border_buf
 
+  -- WinClosed fires reliably for floating windows (unlike splits)
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = "JupytermWidget_" .. kernel,
+    pattern = tostring(content_win),
+    once = true,
+    callback = function()
+      widget.pop_input_close(kernel)
+    end,
+  })
+
   -- Schedule so these land after BufEnter autocmds (which would otherwise
   -- re-apply the normal input keymaps on top of ours).
   local map_opts = { buffer = input_buf, nowait = true }
   vim.schedule(function()
     if not (w._popup_win and vim.api.nvim_win_is_valid(w._popup_win)) then return end
-    vim.keymap.set("n", "q",     function() widget.pop_input_close(kernel) end,
-      vim.tbl_extend("force", map_opts, { desc = "Close popup" }))
     vim.keymap.set("n", "<Esc>", function() widget.pop_input_close(kernel) end,
       vim.tbl_extend("force", map_opts, { desc = "Close popup" }))
     vim.keymap.set("n", "<CR>",  function()

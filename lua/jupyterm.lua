@@ -413,18 +413,16 @@ function Jupyterm.setup(opts)
     refresh_virt_text_timer:start(delay, delay, vim.schedule_wrap(display.refresh_virt_text))
   end
 
-  -- Apply winfixbuf to all widget windows
-  local major = vim.version().major
-  local minor = vim.version().minor
-  if (major < 1) and (minor > 9) then
-    vim.api.nvim_create_autocmd({"BufWinEnter"}, {
-      group = "Jupyterm",
-      pattern = {"jupyterm:*", "jupyterm-input:*", "jupyterm-vars:*"},
-      callback = function()
-        vim.o.winfixbuf = true
+  -- Destroy all kernel widgets on Neovim exit
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = "Jupyterm",
+    callback = function()
+      for kernel in pairs(Jupyterm.kernels) do
+        widget.destroy(kernel)
       end
-    })
-  end
+    end,
+    desc = "Cleanup Jupyterm widgets on exit",
+  })
 
   -- Ensure virtual text is forgotten when buffer is closed
   vim.api.nvim_create_autocmd({"BufDelete"}, {

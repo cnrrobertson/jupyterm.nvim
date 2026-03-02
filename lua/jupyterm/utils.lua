@@ -150,6 +150,11 @@ end
 ---@param bufnr number
 ---@param name string
 function utils.rename_buffer(bufnr, name)
+  -- Delete any existing buffer that already has this name (e.g. stale widget buffers after :qa)
+  local existing = vim.fn.bufnr('^' .. name .. '$')
+  if existing ~= -1 and existing ~= bufnr then
+    pcall(vim.api.nvim_buf_delete, existing, { force = true })
+  end
   vim.api.nvim_buf_set_name(bufnr, name)
   -- Renaming causes duplication of terminal buffer -> delete old buffer
   -- https://github.com/neovim/neovim/issues/20349

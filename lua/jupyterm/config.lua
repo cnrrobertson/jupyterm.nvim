@@ -58,8 +58,8 @@ local config = {
       -- Keymaps for the output pane
       output_keymaps = {
         {"n", "<cr>", function() require("jupyterm.execute").send_display_block() end, "Run"},
-        {"n", "e", function() require("jupyterm.display").yank_block_to_input() end, "Edit"},
-        {"n", "x", function() require("jupyterm.display").expand_output_block() end, "Expand output"},
+        {"n", "a", function() require("jupyterm.display").yank_block_to_input() end, "Edit"},
+        {"n", "e", function() require("jupyterm.display").expand_output_block() end, "Expand output"},
         {"n", "[[", function() require("jupyterm.display").jump_display_block_up() end, "Prev"},
         {"n", "]]", function() require("jupyterm.display").jump_display_block_down() end, "Next"},
         {"n", "<esc>", function() require("jupyterm.display").refresh_output() end, "Refresh"},

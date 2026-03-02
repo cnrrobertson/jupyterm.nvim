@@ -425,7 +425,7 @@ function display.expand_output_block(kernel)
     },
     border = { style = "rounded", text = {
       top = string.format(" Out [%d] ", ind), top_align = "center",
-      bottom = " q / <Esc> close ", bottom_align = "center",
+      bottom = " <Esc> close ", bottom_align = "center",
     }},
   })
   popup:mount()
@@ -433,7 +433,6 @@ function display.expand_output_block(kernel)
   vim.api.nvim_set_option_value("modifiable", false, { buf = popup.bufnr })
 
   local function close() popup:unmount() end
-  popup:map("n", "q",     close, {}, true)
   popup:map("n", "<Esc>", close, {}, true)
   vim.api.nvim_create_autocmd("BufLeave", { buffer = popup.bufnr, once = true, callback = close })
 end
@@ -470,10 +469,8 @@ function display.show_repl_help(kernel)
   local bufnr = vim.api.nvim_get_current_buf()
   local function dismiss()
     help_menu:unmount()
-    pcall(vim.keymap.del, "n", "q",     { buffer = bufnr })
     pcall(vim.keymap.del, "n", "<Esc>", { buffer = bufnr })
   end
-  vim.keymap.set("n", "q",     dismiss, { buffer = bufnr, nowait = true })
   vim.keymap.set("n", "<Esc>", dismiss, { buffer = bufnr, nowait = true })
   vim.api.nvim_create_autocmd({ "ModeChanged", "CursorMoved" }, {
     group = "Jupyterm", once = true, buffer = bufnr, callback = dismiss,

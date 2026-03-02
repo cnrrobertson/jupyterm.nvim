@@ -37,7 +37,6 @@ local function open_win(bufnr, enter, opts, win_opts)
   local merged = vim.tbl_deep_extend("force", {
     wrap = true,
     linebreak = true,
-    winfixbuf = true,
   }, win_opts or {})
 
   for name, value in pairs(merged) do
