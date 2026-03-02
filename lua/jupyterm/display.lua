@@ -49,6 +49,18 @@ function display.render_output(kernel, full)
 
   local commentstring = Jupyterm.jupystring[bufnr]
 
+  -- Resolve the expand key once before rendering
+  local expand_key = "x"
+  for _, km in ipairs(Jupyterm.config.ui.repl.output_keymaps or {}) do
+    if km[4] == "Expand output" then
+      expand_key = km[2]
+      break
+    end
+  end
+
+  -- Sentinel prefix used to find truncation marker lines for styling
+  local TRUNC_SENTINEL = "<<jupyterm-trunc>>"
+
   buf_helpers.with_modifiable(bufnr, function()
     -- Clear buffer and extmarks
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {})
@@ -56,6 +68,7 @@ function display.render_output(kernel, full)
     vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_in_bottom, 0, -1)
     vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_out_top, 0, -1)
     vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_out_bottom, 0, -1)
+    vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_trunc, 0, -1)
 
     -- Filter out variables command entries
     local vars_cmd = Jupyterm.config.ui.repl.variables.command
@@ -83,6 +96,13 @@ function display.render_output(kernel, full)
       if #split_o > Jupyterm.config.ui.max_displayed_lines then
         split_o = { unpack(split_o, #split_o - Jupyterm.config.ui.max_displayed_lines + 1, #split_o) }
       end
+      local max_out = Jupyterm.config.ui.repl.max_output_lines
+      if max_out and #split_o > max_out then
+        local hidden = #split_o - max_out
+        split_o = { unpack(split_o, 1, max_out) }
+        -- Insert a sentinel line; we'll replace its display with a styled extmark after rendering
+        table.insert(split_o, TRUNC_SENTINEL .. tostring(hidden))
+      end
       if (#split_o ~= 1) or (utils.strip(split_o[1]) ~= "") then
         local out_txt, out_txt2 = display.generate_cell(commentstring, ind, "Out")
         vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, { "" })
@@ -100,6 +120,24 @@ function display.render_output(kernel, full)
       vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, split_i)
       vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, { "" })
       in_txt:render(bufnr, Jupyterm.ns_in_top, 2)
+    end
+  end)
+
+  -- Post-render: find sentinel lines and replace their display with a styled extmark
+  local all_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  buf_helpers.with_modifiable(bufnr, function()
+    for lnum, line in ipairs(all_lines) do
+      if vim.startswith(line, TRUNC_SENTINEL) then
+        local hidden = tonumber(line:sub(#TRUNC_SENTINEL + 1)) or 0
+        local display_text = string.format("  ↕ %d more lines  (%s to expand)", hidden, expand_key)
+        -- Replace sentinel content with empty (the extmark provides the display)
+        vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { "" })
+        vim.api.nvim_buf_set_extmark(bufnr, Jupyterm.ns_trunc, lnum - 1, 0, {
+          virt_text = { { display_text, "Comment" } },
+          virt_text_pos = "overlay",
+          hl_mode = "replace",
+        })
+      end
     end
   end)
 end
@@ -491,6 +529,79 @@ function display.show_repl_help(kernel)
     buffer = bufnr,
   })
   help_menu:mount()
+end
+
+--- Opens the full output of the block under the cursor in a floating popup.
+--- Useful when an output has been truncated by max_output_lines.
+---@param kernel string?
+function display.expand_output_block(kernel)
+  if not kernel then
+    kernel = utils.find_kernel(vim.api.nvim_get_current_buf())
+  end
+  kernel = kernel or utils.get_kernel(kernel)
+  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  if not w then return end
+
+  local bufnr = w.buf_nrs.output
+  local winid = w.win_nrs.output
+  if not winid or not vim.api.nvim_win_is_valid(winid) then return end
+
+  local cursor = vim.api.nvim_win_get_cursor(winid)
+  local top_out = utils.get_extmark_above_buf(bufnr, cursor[1], Jupyterm.ns_out_top)
+  if not top_out then return end
+
+  -- Extract the output index from the extmark virtual text
+  local ind = tonumber(string.match(top_out[4].virt_lines[2][1][1], "%d+"))
+  if not ind then return end
+
+  local outputs = vim.fn.JupyOutput(tostring(kernel))[2]
+  local output = outputs[ind]
+  if not output then return end
+
+  local split_output = utils.split_by_newlines(output)
+  -- Strip trailing empty lines
+  while #split_output > 0 and utils.strip(split_output[#split_output]) == "" do
+    table.remove(split_output)
+  end
+  if #split_output == 0 then return end
+
+  local kernel_name = Jupyterm.kernels[kernel].kernel_name
+  local height = math.min(math.max(#split_output, 5), math.floor(vim.o.lines * 0.6))
+
+  local popup = Popup({
+    relative = "editor",
+    position = "50%",
+    size = { width = "70%", height = height },
+    enter = true,
+    focusable = true,
+    buf_options = {
+      buftype = "nofile",
+      bufhidden = "wipe",
+      swapfile = false,
+      filetype = "jupyterm-repl-" .. kernel_name,
+    },
+    border = {
+      style = "rounded",
+      text = {
+        top = string.format(" Out [%d] ", ind),
+        top_align = "center",
+        bottom = " q / <Esc> close ",
+        bottom_align = "center",
+      },
+    },
+  })
+  popup:mount()
+  vim.api.nvim_buf_set_lines(popup.bufnr, 0, -1, false, split_output)
+  vim.api.nvim_set_option_value("modifiable", false, { buf = popup.bufnr })
+
+  local function close() popup:unmount() end
+  popup:map("n", "q",     close, {}, true)
+  popup:map("n", "<Esc>", close, {}, true)
+  vim.api.nvim_create_autocmd("BufLeave", {
+    buffer = popup.bufnr,
+    once = true,
+    callback = close,
+  })
 end
 
 --- Jumps to the previous display block in the output pane.
