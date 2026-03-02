@@ -264,10 +264,12 @@ class Kernel(object):
         duration = datetime.timedelta(seconds=self.durations[oloc])
         if duration < datetime.timedelta(seconds=1):
             duration = ""
+        elif final:
+            duration = f"Duration: {duration}"
         else:
             duration = f" (Elapsed: {duration})"
         if final:
-            self.outputs[oloc] = output + processed_addition + duration[1:]
+            self.outputs[oloc] = output + processed_addition + duration
         else:
             self.outputs[oloc] = output + processed_addition + self.wait_str + duration
 
