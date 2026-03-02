@@ -1,32 +1,30 @@
 local utils = {}
 
----Checks if the buffer is a jupyterm buffer
+---Checks if the buffer is a jupyterm buffer (by filetype or buffer name)
 ---@param buf integer
 ---@return boolean
 function utils.is_jupyterm(buf)
   local ft = vim.api.nvim_get_option_value("filetype", {buf=buf})
-  local jupy_name = string.find(ft, "jupyterm")
-  return jupy_name ~= nil
+  if string.find(ft, "jupyterm") then
+    return true
+  end
+  -- Input buffers use the real language filetype, so check buffer name
+  local name = vim.api.nvim_buf_get_name(buf)
+  return string.find(name, "jupyterm") ~= nil
 end
 
---- Checks if the repl buffer is showing.
+--- Checks if the widget output window is showing.
 ---@param kernel string
 ---@return boolean true if showing, false otherwise
 ---@private
 function utils.is_repl_showing(kernel)
   if Jupyterm.kernels[kernel] then
-    if Jupyterm.kernels[kernel].show_win then
-      if Jupyterm.kernels[kernel].show_win.winid then
-        return true
-      else
-        return false
-      end
-    else
-      return false
+    local w = Jupyterm.kernels[kernel].widget
+    if w and w.win_nrs.output then
+      return vim.api.nvim_win_is_valid(w.win_nrs.output)
     end
-  else
-    return false
   end
+  return false
 end
 
 --- Checks if virtual text is showing.
@@ -57,23 +55,34 @@ function utils.is_virt_text_showing(kernel)
 end
 
 
----Finds the kernel associated with the given buffer
+---Finds the kernel associated with the given buffer (checks all widget buffers)
 ---@param buf integer
 ---@return string?
 function utils.find_kernel(buf)
-  for k,v in pairs(Jupyterm.kernels) do
-    if v.show_buf and v.show_buf == buf then
-      return k
+  for k, v in pairs(Jupyterm.kernels) do
+    if v.widget then
+      for _, bufnr in pairs(v.widget.buf_nrs) do
+        if bufnr == buf then
+          return k
+        end
+      end
     end
   end
 end
 
----Gets the kernel if the current buffer is a Jupyter REPL buffer
+---Gets the kernel if the current buffer is any widget buffer
+---@return string?
+function utils.get_kernel_if_in_widget_buf()
+  local buf = vim.api.nvim_get_current_buf()
+  if utils.is_jupyterm(buf) then
+    return utils.find_kernel(buf)
+  end
+end
+
+---Gets the kernel if the current buffer is a Jupyter REPL buffer (legacy compat)
 ---@return string?
 function utils.get_kernel_if_in_kernel_buf()
-  if utils.is_jupyterm(vim.api.nvim_get_current_buf()) then
-    return utils.find_kernel(vim.api.nvim_get_current_buf())
-  end
+  return utils.get_kernel_if_in_widget_buf()
 end
 
 ---Generates a kernel name based on the current buffer.
@@ -89,7 +98,7 @@ end
 ---@return string
 function utils.get_kernel_buf_or_buf()
   local kernel_buf_name = utils.make_kernel_name()
-  return utils.get_kernel_if_in_kernel_buf() or kernel_buf_name
+  return utils.get_kernel_if_in_widget_buf() or kernel_buf_name
 end
 
 ---Gets kernel in this order:
@@ -152,7 +161,7 @@ function utils.rename_buffer(bufnr, name)
   end
 end
 
---- Gets the namespace extmark above the line.
+--- Gets the namespace extmark above the line (current buffer).
 ---@param cur_line integer current line
 ---@param ns_id integer namespace id
 ---@return table? extmark or nil
@@ -163,12 +172,36 @@ function utils.get_extmark_above(cur_line, ns_id)
   end
 end
 
---- Gets the namespace extmark below the line
+--- Gets the namespace extmark below the line (current buffer)
 ---@param cur_line integer current line
 ---@param ns_id integer namespace id
 ---@return table? extmark or nil
 function utils.get_extmark_below(cur_line, ns_id)
   local extmarks = vim.api.nvim_buf_get_extmarks(0, ns_id, {cur_line,0}, {-1,0}, {details=true, overlap=true})
+  if #extmarks > 0 then
+    return extmarks[1]
+  end
+end
+
+--- Gets the namespace extmark above the line in a specific buffer.
+---@param bufnr integer buffer number
+---@param cur_line integer current line
+---@param ns_id integer namespace id
+---@return table? extmark or nil
+function utils.get_extmark_above_buf(bufnr, cur_line, ns_id)
+  local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, {0,0}, {cur_line-1,0}, {details=true, overlap=true})
+  if #extmarks > 0 then
+    return extmarks[#extmarks]
+  end
+end
+
+--- Gets the namespace extmark below the line in a specific buffer.
+---@param bufnr integer buffer number
+---@param cur_line integer current line
+---@param ns_id integer namespace id
+---@return table? extmark or nil
+function utils.get_extmark_below_buf(bufnr, cur_line, ns_id)
+  local extmarks = vim.api.nvim_buf_get_extmarks(bufnr, ns_id, {cur_line,0}, {-1,0}, {details=true, overlap=true})
   if #extmarks > 0 then
     return extmarks[1]
   end

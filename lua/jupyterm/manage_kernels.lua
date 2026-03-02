@@ -63,16 +63,14 @@ function manage_kernels.start_kernel(kernel, cwd, kernel_name)
     local wait_str = Jupyterm.config.ui.wait_str
     vim.fn.JupyStart(kernel, cwd, kernel_name, wait_str, queue_str)
     Jupyterm.kernels[kernel] = {
-      kernel_name=kernel_name,
-      edited=nil,
-      show_win=nil,
-      show_buf=nil,
-      show_full_output=nil,
-      show_virt=true,
-      virt_buf=nil,
-      virt_text={},
-      virt_olocs={},
-      virt_extmarks={},
+      kernel_name = kernel_name,
+      widget = nil,
+      show_virt = true,
+      virt_buf = nil,
+      virt_text = {},
+      virt_olocs = {},
+      virt_extmarks = {},
+      vars_output_idx = nil,
     }
   end
 end
@@ -81,9 +79,12 @@ end
 ---@param kernel string?
 function manage_kernels.shutdown_kernel(kernel)
   kernel = utils.get_kernel(kernel)
-  if Jupyterm.kernels[kernel].show_win then
-    Jupyterm.kernels[kernel].show_win:unmount()
-  end
+
+  -- Destroy widget
+  local widget = require("jupyterm.widget")
+  widget.destroy(kernel)
+
+  -- Clear virtual text
   if utils.is_virt_text_showing(kernel) then
     vim.api.nvim_buf_clear_namespace(
       Jupyterm.kernels[kernel].virt_buf,
@@ -92,8 +93,9 @@ function manage_kernels.shutdown_kernel(kernel)
       -1
     )
   end
+
   Jupyterm.kernels[kernel] = nil
-  for b,k in pairs(Jupyterm.send_memory) do
+  for b, k in pairs(Jupyterm.send_memory) do
     if k == kernel then
       Jupyterm.send_memory[b] = nil
     end
@@ -105,6 +107,8 @@ end
 ---@param kernel string?
 function manage_kernels.restart_kernel(kernel)
   kernel = utils.get_kernel(kernel)
+
+  -- Clear virtual text
   if utils.is_virt_text_showing(kernel) then
     vim.api.nvim_buf_clear_namespace(
       Jupyterm.kernels[kernel].virt_buf,
@@ -116,16 +120,36 @@ function manage_kernels.restart_kernel(kernel)
   Jupyterm.kernels[kernel].virt_text = {}
   Jupyterm.kernels[kernel].virt_olocs = {}
   Jupyterm.kernels[kernel].virt_extmarks = {}
+  Jupyterm.kernels[kernel].vars_output_idx = nil
+
   vim.fn.JupyRestart(tostring(kernel))
-  if Jupyterm.kernels[kernel].show_win then
-    -- Jupyterm.kernels[kernel].show_win:unmount()
-    local buf = Jupyterm.kernels[kernel].show_buf
-    if buf and vim.api.nvim_buf_is_valid(buf) then
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
+
+  -- Clear output buffer if widget exists
+  local w = Jupyterm.kernels[kernel].widget
+  if w then
+    local buf_helpers = require("jupyterm.buf_helpers")
+    local bufnr = w.buf_nrs.output
+    if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+      buf_helpers.with_modifiable(bufnr, function()
+        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {})
+        vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_in_top, 0, -1)
+        vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_in_bottom, 0, -1)
+        vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_out_top, 0, -1)
+        vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_out_bottom, 0, -1)
+      end)
     end
-    local display = require("jupyterm.display")
-    display.display_end_block(kernel, {})
-    display.navigate_to_repl_end(kernel)
+    -- Clear variables buffer
+    local vars_buf = w.buf_nrs.variables
+    if vars_buf and vim.api.nvim_buf_is_valid(vars_buf) then
+      buf_helpers.with_modifiable(vars_buf, function()
+        vim.api.nvim_buf_set_lines(vars_buf, 0, -1, false, {})
+      end)
+    end
+    -- Clear input buffer
+    local input_buf = w.buf_nrs.input
+    if input_buf and vim.api.nvim_buf_is_valid(input_buf) then
+      vim.api.nvim_buf_set_lines(input_buf, 0, -1, false, {})
+    end
   end
 end
 

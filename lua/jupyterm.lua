@@ -8,7 +8,7 @@
 --- Key features:
 --- - Start, interrupt, shutdown, and restart Jupyter kernels effortlessly.
 --- - Send code blocks or selections to a selected kernel.
---- - View Jupyter outputs in REPL buffers or as virtual text inline with your code.
+--- - View Jupyter outputs in a multi-pane REPL (output, variables, input) or as virtual text inline with your code.
 --- - Supports multiple languages via their respective Jupyter kernels (Python, R, Julia, etc.)
 ---
 --- # Setup ~
@@ -26,9 +26,14 @@
 ---
 ---   3. Manage Kernels: Use `:Jupyter status`, `:Jupyter interrupt`, `:Jupyter shutdown`, `:Jupyter restart`, and `:Jupyter menu` to check the status, interrupt execution, shutdown a kernel, restart a kernel, or view active kernels in an interactive popup menu.
 ---
----   4. Output Display: Outputs will appear in a dedicated REPL buffer or inline, depending on your configuration (`jupyterm.config.inline_display`). You can also use `:Jupyter toggle_repl` and `:Jupyter toggle_text` to manage the REPL buffer and virtual text respectively. Use `:Jupyter toggle_text_here` to toggle individual inline outputs.
+---   4. Output Display: Outputs will appear in a dedicated REPL widget or inline, depending on your configuration (`jupyterm.config.inline_display`). You can also use `:Jupyter toggle_repl` and `:Jupyter toggle_text` to manage the REPL widget and virtual text respectively. Use `:Jupyter toggle_text_here` to toggle individual inline outputs.
 ---
----   5. REPL: After opening the REPL buffer with `:Jupyter toggle_repl`, the buffer may be edited as normal. Text inserted below the last `In [*]` in the buffer will be considered a new input. By default, hitting enter in normal mode will submit the input to the kernel. See the [REPL section](#repl) for more information on this buffer.
+---   5. REPL Widget: After opening the REPL with `:Jupyter toggle_repl`, a three-pane layout appears:
+---      - Output pane (top): Read-only scrollable history of In/Out blocks.
+---      - Variables pane (middle, toggleable): Shows IPython variables via `%whos`.
+---      - Input pane (bottom): Editable area for typing code. Press Enter in normal mode to submit.
+---
+---   6. Variables: Use `:Jupyter toggle_variables` or `<C-v>` in any REPL pane to show/hide the variables inspector.
 ---
 --- # User Commands ~
 ---
@@ -55,8 +60,11 @@
 ---   Toggles the Jupyter kernel menu.
 ---   `:Jupyter menu`
 ---
----   Toggles the REPL window for a kernel.
----   `:Jupyter toggle_repl kernel? focus? full?`
+---   Toggles the REPL widget for a kernel.
+---   `:Jupyter toggle_repl kernel? focus?`
+---
+---   Toggles the variables pane for a kernel.
+---   `:Jupyter toggle_variables kernel?`
 ---
 ---   Toggles the display of virtual text outputs for a kernel.
 ---   `:Jupyter toggle_text kernel?`
@@ -67,38 +75,10 @@
 ---   Shows virtual text output in the range under the cursor in a popup window.
 ---   `:Jupyter expand_text_here kernel row?`
 ---
---- Note that `kernel` generally refers to the kernel identifier in Neovim and not the `kernel_name` or the actual descriptor of a Jupyter kernel (e.g., `python3`, `ir`). Optional arguments can be omitted.
----
---- # REPL ~
----
---- The REPL (Read-Eval-Print Loop) buffer provides an interactive environment for executing code and viewing results. This buffer can be shown using `:Jupyter toggle_repl`. Text inserted *after* the last `In [*]` marker in this buffer is treated as a new input cell. Pressing Enter in normal mode will submit this input to the kernel.
----
---- The REPL buffer automatically refreshes to display updates from long-running computations. However, this automatic refresh pauses when you begin typing new input, preventing accidental overwriting.
----
---- To manage the length of the buffer and optimize refresh speed, the buffer's display is limited to a certain number of lines (configurable via `jupyterm.config.ui.max_displayed_lines`).  This prevents performance slowdowns from extremely large outputs. If needed, you can view the complete output by using the `full` argument of `Jupyter toggle_repl` or see the `lua` API in the help file.
----
---- The REPL buffer also comes with default keybindings for convenience:
----
----    *<CR>*: Submits the current input to the kernel.
----    *<Esc>*: Refreshes the display, showing the most current kernel output.
----    *[c*: Jumps to the previous display block.
----    *]c*: Jumps to the next display block.
----    *<C-c>*: Interrupts the currently running kernel.
----    *<C-q>*: Shuts down the currently running kernel.
----
---- These keybindings make interacting with the REPL buffer intuitive and efficient.
----
---- The REPL buffer uses a markdown filetype which allows for convenient syntax highlighting and for display blocks to be folded using the `treesitter` `foldexpr`. For example:
----
----   vim.o.foldmethod = "expr"
----   vim.o.foldexpr = "v:lua.vim.treesitter.foldexpr()"
----   vim.o.foldlevel = 99
----   vim.o.foldnestmax = 4
----
 --- # Highlight groups ~
 ---
---- * `JupytermInText` - Titles of input blocks in REPL buffer
---- * `JupytermOutText` - Titles of output blocks in REPL buffer
+--- * `JupytermInText` - Titles of input blocks in output pane
+--- * `JupytermOutText` - Titles of output blocks in output pane
 --- * `JupytermVirtQueued` - Color of virtual text when queued for execution
 --- * `JupytermVirtComputing` - Color of virtual text when currently being executed
 --- * `JupytermVirtCompleted` - Color of virtual text when execution completed
@@ -110,6 +90,7 @@ local display = require("jupyterm.display")
 local manage_kernels = require("jupyterm.manage_kernels")
 local execute = require("jupyterm.execute")
 local menu = require("jupyterm.menu")
+local widget = require("jupyterm.widget")
 
 local Jupyterm = {kernels={}, send_memory={}, jupystring={}}
 
@@ -223,7 +204,13 @@ function Jupyterm.setup(opts)
     },
     toggle_repl = {
       impl = function(args, opts)
-        display.toggle_repl(unpack(args))
+        widget.toggle(unpack(args))
+      end,
+      complete = {"kernel"}
+    },
+    toggle_variables = {
+      impl = function(args, opts)
+        widget.toggle_variables(unpack(args))
       end,
       complete = {"kernel"}
     },
@@ -272,7 +259,6 @@ function Jupyterm.setup(opts)
         return completion(subcommand_tbl[subcmd_key].complete)(subcmd_arg_lead)
       end
       if cmdline:match("^['<,'>]*Jupyter[!]*%s+%w*$") then
-        -- Filter subcommands that match
         local subcommand_keys = vim.tbl_keys(subcommand_tbl)
         return vim.iter(subcommand_keys)
           :filter(function(key)
@@ -284,124 +270,160 @@ function Jupyterm.setup(opts)
     range = true
   })
 
-  -- Set configs for REPL/virtual text windows/buffers
+  -- Set configs for output buffers (markdown syntax highlighting)
+  -- Only applies to output/virt-text buffers, not input or variables panes
   vim.api.nvim_create_autocmd("FileType", {
     group = "Jupyterm",
-    pattern = "jupyterm-*",
+    pattern = "jupyterm-repl-*",
     callback = function(opts)
       local pattern = opts.match
+      local bufnr = vim.api.nvim_get_current_buf()
 
       -- Identify language
-      local buf_name = vim.api.nvim_buf_get_name(0)
+      local buf_name = vim.api.nvim_buf_get_name(bufnr)
       local language = "python"
-      local kernel_name = "python3"
-      for k,v in pairs(Jupyterm.kernel_to_lang) do
-        if string.find(buf_name, ":"..k..":") then
+      for k, v in pairs(Jupyterm.kernel_to_lang) do
+        if string.find(buf_name, ":" .. k .. ":") then
           language = v
-          kernel_name = k
         end
       end
 
+      Jupyterm.jupystring[bufnr] = "```" .. language
+
       -- Syntax highlighting
-      vim.api.nvim_set_option_value("syntax", "on", {buf = 0})
-      local bufnr = vim.api.nvim_get_current_buf()
-      local status, _ = pcall(require, 'nvim-treesitter')
-      Jupyterm.jupystring[bufnr] = "```"..language
-      if status then
+      local has_ts, _ = pcall(require, 'nvim-treesitter')
+      if has_ts then
         vim.treesitter.language.register("markdown", pattern)
-        vim.cmd[[TSBufEnable highlight]]
+        pcall(vim.cmd, "TSBufEnable highlight")
       else
+        vim.api.nvim_set_option_value("syntax", "on", { buf = bufnr })
         if vim.g.markdown_fenced_languages then
           table.insert(vim.g.markdown_fenced_languages, language)
         else
-          vim.g.markdown_fenced_languages = {language}
+          vim.g.markdown_fenced_languages = { language }
         end
         vim.cmd("setlocal syntax=markdown")
       end
     end
   })
+  -- Also register jupystring for virtual text popup buffers
   vim.api.nvim_create_autocmd("FileType", {
     group = "Jupyterm",
-    pattern = "jupyterm-repl-*",
-    callback = function()
-      -- Options and keybindings
-      vim.bo.tabstop = 4
-      vim.bo.shiftwidth = 4
-      vim.bo.expandtab = true
-      for _,k in ipairs(Jupyterm.config.ui.repl.keymaps) do
-        vim.keymap.set(k[1], k[2], k[3], {desc=k[4], buffer=0})
+    pattern = "jupyterm-*",
+    callback = function(opts)
+      local bufnr = vim.api.nvim_get_current_buf()
+      -- Skip if already handled by the repl-* autocmd above
+      if Jupyterm.jupystring[bufnr] then return end
+      -- Skip input/vars buffers
+      if opts.match:find("jupyterm%-input") or opts.match:find("jupyterm%-vars") then return end
+
+      local buf_name = vim.api.nvim_buf_get_name(bufnr)
+      local language = "python"
+      for k, v in pairs(Jupyterm.kernel_to_lang) do
+        if string.find(buf_name, ":" .. k .. ":") then
+          language = v
+        end
+      end
+      Jupyterm.jupystring[bufnr] = "```" .. language
+
+      local has_ts, _ = pcall(require, 'nvim-treesitter')
+      if has_ts then
+        vim.treesitter.language.register("markdown", opts.match)
+        pcall(vim.cmd, "TSBufEnable highlight")
+      else
+        vim.api.nvim_set_option_value("syntax", "on", { buf = bufnr })
+        if vim.g.markdown_fenced_languages then
+          table.insert(vim.g.markdown_fenced_languages, language)
+        else
+          vim.g.markdown_fenced_languages = { language }
+        end
+        vim.cmd("setlocal syntax=markdown")
       end
     end
   })
 
-  -- Periodically refresh displayed windows
+  -- Output pane settings and keymaps
+  vim.api.nvim_create_autocmd("FileType", {
+    group = "Jupyterm",
+    pattern = "jupyterm-repl-*",
+    callback = function()
+      vim.bo.tabstop = 4
+      vim.bo.shiftwidth = 4
+      vim.bo.expandtab = true
+      -- Output-specific keymaps
+      for _,k in ipairs(Jupyterm.config.ui.repl.output_keymaps) do
+        vim.keymap.set(k[1], k[2], k[3], {desc=k[4], buffer=0})
+      end
+      -- Global keymaps
+      for _,k in ipairs(Jupyterm.config.ui.repl.global_keymaps) do
+        vim.keymap.set(k[1], k[2], k[3], {desc=k[4], buffer=0})
+      end
+      -- In output pane, insert-mode keys jump to input pane
+      for _, key in ipairs({"i", "I", "a", "A", "o", "O"}) do
+        vim.keymap.set("n", key, function()
+          local kernel = utils.get_kernel_if_in_widget_buf()
+          if kernel then
+            local w = Jupyterm.kernels[kernel].widget
+            if w and w.win_nrs.input and vim.api.nvim_win_is_valid(w.win_nrs.input) then
+              vim.api.nvim_set_current_win(w.win_nrs.input)
+              vim.cmd("startinsert")
+            end
+          end
+        end, {desc="Jump to input pane", buffer=0})
+      end
+    end
+  })
+
+  -- Input pane keymaps and settings are bound directly in widget.create()
+  -- since the input buffer uses the real language filetype (e.g. "python")
+  -- for full LSP, completions, indent, and treesitter support.
+
+  -- Variables pane settings and keymaps
+  vim.api.nvim_create_autocmd("FileType", {
+    group = "Jupyterm",
+    pattern = "jupyterm-vars-*",
+    callback = function()
+      -- Global keymaps only (read-only pane)
+      for _,k in ipairs(Jupyterm.config.ui.repl.global_keymaps) do
+        vim.keymap.set(k[1], k[2], k[3], {desc=k[4], buffer=0})
+      end
+      -- Insert-mode keys jump to input pane
+      for _, key in ipairs({"i", "I", "a", "A", "o", "O"}) do
+        vim.keymap.set("n", key, function()
+          local kernel = utils.get_kernel_if_in_widget_buf()
+          if kernel then
+            local w = Jupyterm.kernels[kernel].widget
+            if w and w.win_nrs.input and vim.api.nvim_win_is_valid(w.win_nrs.input) then
+              vim.api.nvim_set_current_win(w.win_nrs.input)
+              vim.cmd("startinsert")
+            end
+          end
+        end, {desc="Jump to input pane", buffer=0})
+      end
+    end
+  })
+
+  -- Periodically refresh displayed windows and virtual text
   if Jupyterm.config.output_refresh.enabled then
     local refresh_buf_timer = vim.loop.new_timer()
     local delay = Jupyterm.config.output_refresh.delay
     refresh_buf_timer:start(delay, delay, vim.schedule_wrap(display.refresh_windows))
     local refresh_virt_text_timer = vim.loop.new_timer()
-    local delay = Jupyterm.config.output_refresh.delay
     refresh_virt_text_timer:start(delay, delay, vim.schedule_wrap(display.refresh_virt_text))
   end
 
-  -- Clean up jupyterms on exit (helps session management)
-  vim.api.nvim_create_autocmd({"ExitPre"}, {
-    group = "Jupyterm",
-    pattern="*",
-    callback = function()
-      -- Close all open jupyterm windows
-      for k,_ in pairs(Jupyterm.kernels) do
-        if utils.is_repl_showing(k) then
-          local kernel_win = Jupyterm.kernels[k].show_win.winid
-          vim.api.nvim_win_close(kernel_win, true)
-        end
-      end
-    end
-  })
-
-  -- Only allow REPL buffers in jupyterm windows
+  -- Apply winfixbuf to all widget windows
   local major = vim.version().major
   local minor = vim.version().minor
   if (major < 1) and (minor > 9) then
     vim.api.nvim_create_autocmd({"BufWinEnter"}, {
       group = "Jupyterm",
-      pattern = "jupyterm:*",
+      pattern = {"jupyterm:*", "jupyterm-input:*", "jupyterm-vars:*"},
       callback = function()
         vim.o.winfixbuf = true
       end
     })
-  else
-    -- Handle buffer switching for versions below 0.9
-    vim.api.nvim_create_autocmd({"BufWinEnter"}, {
-      group = "Jupyterm",
-      pattern = "*",
-      callback = function()
-        local prev_file_nuiterm = vim.api.nvim_eval('bufname("#") =~ "jupyterm:"')
-        local cur_file_nuiterm = vim.api.nvim_eval('bufname("%") =~ "jupyterm:"')
-        local prev_bufwin = vim.api.nvim_eval('win_findbuf(bufnr("#"))')
-        if (prev_file_nuiterm == 1) and (cur_file_nuiterm == 0) and (#prev_bufwin == 0) then
-          vim.schedule(function()vim.cmd[[b#]]end)
-        end
-      end
-    })
   end
-
-  -- Keep track of REPL buffer edits to avoid overwriting on refresh
-  vim.api.nvim_create_autocmd({"ModeChanged"}, {
-    group = "Jupyterm",
-    pattern = {"n:[vViRsS\x16\x13]*", "n:no*"},
-    callback = function()
-      -- Mark kernel as edited if REPL buffer is modified
-      local bufnr = vim.api.nvim_get_current_buf()
-      local filename = vim.api.nvim_buf_get_name(bufnr)
-      if filename:match("jupyterm:*") then
-        local kernel = utils.get_kernel_if_in_kernel_buf()
-        if kernel then
-          Jupyterm.kernels[kernel].edited = true
-        end
-      end
-    end
-  })
 
   -- Ensure virtual text is forgotten when buffer is closed
   vim.api.nvim_create_autocmd({"BufDelete"}, {

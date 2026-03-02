@@ -1,9 +1,3 @@
-local utils = require("jupyterm.utils")
-local display = require("jupyterm.display")
-local manage_kernels = require("jupyterm.manage_kernels")
-local execute = require("jupyterm.execute")
-local menu = require("jupyterm.menu")
-
 ---@tag Jupyterm.config
 ---@signature Jupyterm.config
 ---
@@ -15,6 +9,9 @@ local menu = require("jupyterm.menu")
 ---@field inline_display boolean
 ---@field output_refresh table
 ---@field ui table
+---
+--- Keymaps use lazy wrapper functions to avoid circular require issues.
+--- The actual modules are resolved at call time, not at require time.
 ---
 ---@text Default values:
 ---@eval return MiniDoc.afterlines_to_code(MiniDoc.current.eval_section)
@@ -41,22 +38,47 @@ local config = {
     wait_str = "Computing...",
     queue_str = "Queued",
     repl = {
-      format = "split",
-      config = {
-        relative = "editor",
-        position = "right",
-        size = "40%",
-        enter = false
+      -- Window position: "right", "left", or "bottom"
+      position = "right",
+      -- Width for right/left position
+      width = "40%",
+      -- Height for bottom position
+      height = "30%",
+      -- Fixed height for the input pane
+      input_height = 10,
+      -- Keymaps for the input pane
+      input_keymaps = {
+        {"n", "<cr>", function() require("jupyterm.execute").send_input_pane() end, "Run"},
+        {"n", "e", function() require("jupyterm.widget").pop_input() end, "Expand"},
+        {"n", "[[", function() require("jupyterm.display").history_prev() end, "Prev"},
+        {"n", "]]", function() require("jupyterm.display").history_next() end, "Next"},
       },
-      keymaps = {
-        {"n", "<cr>", execute.send_display_block, "Send display block"},
-        {"n", "[c", display.jump_display_block_up, "Jump up one display block"},
-        {"n", "]c", display.jump_display_block_down, "Jump down one display block"},
-        {"n", "<esc>", display.update_repl, "Refresh"},
-        {"n", "<c-c>", manage_kernels.interrupt_kernel, "Interrupt"},
-        {"n", "<c-q>", manage_kernels.shutdown_kernel, "Shutdown"},
-        {"n", "?", display.show_repl_help, "Help"},
-      }
+      -- Keymaps for the output pane
+      output_keymaps = {
+        {"n", "<cr>", function() require("jupyterm.execute").send_display_block() end, "Run"},
+        {"n", "e", function() require("jupyterm.display").yank_block_to_input() end, "Edit"},
+        {"n", "[[", function() require("jupyterm.display").jump_display_block_up() end, "Prev"},
+        {"n", "]]", function() require("jupyterm.display").jump_display_block_down() end, "Next"},
+        {"n", "<esc>", function() require("jupyterm.display").refresh_output() end, "Refresh"},
+      },
+      -- Keymaps for all panes
+      global_keymaps = {
+        {"n", "<c-c>", function() require("jupyterm.manage_kernels").interrupt_kernel() end, "Stop"},
+        {"n", "<c-q>", function() require("jupyterm.manage_kernels").shutdown_kernel() end, "Quit"},
+        {"n", "<c-v>", function() require("jupyterm.widget").toggle_variables() end, "Vars"},
+        {"n", "?", function() require("jupyterm.display").show_repl_help() end, "See all"},
+      },
+      -- Variables pane settings
+      variables = {
+        -- Allow toggling the variables pane
+        enabled = true,
+        -- Automatically refresh variables after each execution
+        auto_update = true,
+        -- Maximum height for the variables pane
+        max_height = 15,
+        -- IPython magic command to get variables
+        command = "%whos",
+      },
     },
     max_displayed_lines = 500,
     menu = {

@@ -8,8 +8,8 @@ local Popup = require("nui.popup")
 local event = require("nui.utils.autocmd").event
 
 local utils = require("jupyterm.utils")
-local display = require("jupyterm.display")
 local manage_kernels = require("jupyterm.manage_kernels")
+local widget = require("jupyterm.widget")
 
 local menu = {}
 
@@ -197,7 +197,7 @@ end
 function menu.submit(item)
   if item then
     local was_shown = utils.is_repl_showing(item.kernel)
-    display.toggle_repl(item.kernel)
+    widget.toggle(item.kernel)
     if was_shown then menu.show_menu() end
   end
 end
@@ -256,7 +256,7 @@ function menu.toggle_kernel()
   local node = tree:get_node()
   if node then
     menu.toggle_menu()
-    display.toggle_repl(node.kernel)
+    widget.toggle(node.kernel)
     menu.toggle_menu()
   end
 end
