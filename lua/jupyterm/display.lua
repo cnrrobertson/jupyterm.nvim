@@ -9,14 +9,51 @@ local buf_helpers = require("jupyterm.buf_helpers")
 
 local display = {}
 
+-- =========================================================================
+-- Helpers
+-- =========================================================================
+
+--- Resolves kernel from argument or current buffer.
+---@param kernel string?
+---@return string
+local function resolve_kernel(kernel)
+  if not kernel then
+    kernel = utils.find_kernel(vim.api.nvim_get_current_buf())
+  end
+  return kernel or utils.get_kernel(kernel)
+end
+
+--- Returns the highlight group for a virt-text output string.
+---@param text string
+---@return string
+local function virt_hl(text)
+  if string.match(text, Jupyterm.config.ui.wait_str) then
+    return "JupytermVirtComputing"
+  elseif string.match(text, "Error") then
+    return "JupytermVirtError"
+  else
+    return "JupytermVirtCompleted"
+  end
+end
+
+--- Returns the output widget for a kernel, or nil.
+---@param kernel string
+---@return { buf_nrs: table, win_nrs: table }?
+local function get_widget(kernel)
+  return Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget or nil
+end
+
+-- =========================================================================
+-- Refresh
+-- =========================================================================
+
 --- Refreshes all output windows.
 function display.refresh_windows()
   for k, _ in pairs(Jupyterm.kernels) do
-    local w = Jupyterm.kernels[k].widget
+    local w = get_widget(k)
     if w and w.win_nrs.output and vim.api.nvim_win_is_valid(w.win_nrs.output) then
       display.update_output(k)
     end
-    -- Also refresh variables if visible
     if w and w.win_nrs.variables and vim.api.nvim_win_is_valid(w.win_nrs.variables) then
       display.update_variables_display(k)
     end
@@ -32,67 +69,74 @@ function display.refresh_virt_text()
   end
 end
 
+-- =========================================================================
+-- Output pane rendering
+-- =========================================================================
+
+--- Generates the top and bottom extmark Lines for an In/Out cell header.
+---@param commentstring string
+---@param index integer
+---@param kind string "In" or "Out"
+---@return Line, Line
+function display.generate_cell(commentstring, index, kind)
+  local hl = "Jupyterm" .. kind .. "Text"
+  local line1 = Line()
+  line1:append(Text(commentstring, {
+    hl_group = hl, hl_mode = "combine", hl_eol = true,
+    virt_lines_above = true,
+    virt_lines = {
+      { { "───────────────────────────────────────────────────────────────", hl } },
+      { { string.format("%s [%s]: ", kind, index), hl } },
+    },
+  }), {})
+  local line2 = Line()
+  line2:append(Text("```", { hl_group = hl, hl_mode = "combine" }), {})
+  return line1, line2
+end
+
 --- Renders the full output buffer for a kernel.
---- Clears the buffer and re-renders all In/Out blocks.
 ---@param kernel string
----@param full? boolean whether to display full output ignoring max_displayed_lines
+---@param full? boolean ignore max_displayed_lines when true
 function display.render_output(kernel, full)
   local w = Jupyterm.kernels[kernel].widget
   if not w then return end
 
   local bufnr = w.buf_nrs.output
-
-  -- Get kernel data
   local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
-  local inputs = kernel_lines[1]
-  local outputs = kernel_lines[2]
-
+  local inputs, outputs = kernel_lines[1], kernel_lines[2]
   local commentstring = Jupyterm.jupystring[bufnr]
 
-  -- Resolve the expand key once before rendering
   local expand_key = "x"
   for _, km in ipairs(Jupyterm.config.ui.repl.output_keymaps or {}) do
-    if km[4] == "Expand output" then
-      expand_key = km[2]
-      break
-    end
+    if km[4] == "Expand output" then expand_key = km[2]; break end
   end
 
-  -- Sentinel prefix used to find truncation marker lines for styling
   local TRUNC_SENTINEL = "<<jupyterm-trunc>>"
 
   buf_helpers.with_modifiable(bufnr, function()
-    -- Clear buffer and extmarks
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {})
-    vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_in_top, 0, -1)
-    vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_in_bottom, 0, -1)
-    vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_out_top, 0, -1)
-    vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_out_bottom, 0, -1)
-    vim.api.nvim_buf_clear_namespace(bufnr, Jupyterm.ns_trunc, 0, -1)
+    for _, ns in ipairs({ Jupyterm.ns_in_top, Jupyterm.ns_in_bottom,
+                          Jupyterm.ns_out_top, Jupyterm.ns_out_bottom,
+                          Jupyterm.ns_trunc }) do
+      vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+    end
 
-    -- Filter out variables command entries
     local vars_cmd = Jupyterm.config.ui.repl.variables.command
-    local filtered_indices = {}
+    local filtered = {}
     for ind = 1, #inputs do
       if utils.strip(inputs[ind]) ~= vars_cmd then
-        table.insert(filtered_indices, ind)
+        table.insert(filtered, ind)
       end
     end
 
-    -- Render blocks in reverse order (newest at bottom like a terminal)
-    for rev = #filtered_indices, 1, -1 do
-      local ind = filtered_indices[rev]
-      local i = inputs[ind]
-      local o = outputs[ind]
-
-      -- Check for max displayed lines
-      local buf_count = vim.api.nvim_buf_line_count(bufnr)
-      if not full and buf_count > Jupyterm.config.ui.max_displayed_lines then
+    for rev = #filtered, 1, -1 do
+      local ind = filtered[rev]
+      if not full and vim.api.nvim_buf_line_count(bufnr) > Jupyterm.config.ui.max_displayed_lines then
         break
       end
 
-      -- Display outputs
-      local split_o = utils.split_by_newlines(o)
+      -- Output block
+      local split_o = utils.split_by_newlines(outputs[ind])
       if #split_o > Jupyterm.config.ui.max_displayed_lines then
         split_o = { unpack(split_o, #split_o - Jupyterm.config.ui.max_displayed_lines + 1, #split_o) }
       end
@@ -100,40 +144,36 @@ function display.render_output(kernel, full)
       if max_out and #split_o > max_out then
         local hidden = #split_o - max_out
         split_o = { unpack(split_o, 1, max_out) }
-        -- Insert a sentinel line; we'll replace its display with a styled extmark after rendering
-        table.insert(split_o, TRUNC_SENTINEL .. tostring(hidden))
+        table.insert(split_o, TRUNC_SENTINEL .. hidden)
       end
       if (#split_o ~= 1) or (utils.strip(split_o[1]) ~= "") then
-        local out_txt, out_txt2 = display.generate_cell(commentstring, ind, "Out")
+        local top, bot = display.generate_cell(commentstring, ind, "Out")
         vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, { "" })
-        out_txt2:render(bufnr, Jupyterm.ns_out_bottom, 2)
+        bot:render(bufnr, Jupyterm.ns_out_bottom, 2)
         vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, split_o)
         vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, { "" })
-        out_txt:render(bufnr, Jupyterm.ns_out_top, 2)
+        top:render(bufnr, Jupyterm.ns_out_top, 2)
       end
 
-      -- Display inputs
-      local split_i = utils.split_by_newlines(i)
-      local in_txt, in_txt2 = display.generate_cell(commentstring, ind, "In")
+      -- Input block
+      local split_i = utils.split_by_newlines(inputs[ind])
+      local top, bot = display.generate_cell(commentstring, ind, "In")
       vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, { "" })
-      in_txt2:render(bufnr, Jupyterm.ns_in_bottom, 2)
+      bot:render(bufnr, Jupyterm.ns_in_bottom, 2)
       vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, split_i)
       vim.api.nvim_buf_set_lines(bufnr, 1, 1, false, { "" })
-      in_txt:render(bufnr, Jupyterm.ns_in_top, 2)
+      top:render(bufnr, Jupyterm.ns_in_top, 2)
     end
   end)
 
-  -- Post-render: find sentinel lines and replace their display with a styled extmark
-  local all_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  -- Style truncation sentinel lines with a Comment-highlighted virt_text overlay
   buf_helpers.with_modifiable(bufnr, function()
-    for lnum, line in ipairs(all_lines) do
+    for lnum, line in ipairs(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) do
       if vim.startswith(line, TRUNC_SENTINEL) then
         local hidden = tonumber(line:sub(#TRUNC_SENTINEL + 1)) or 0
-        local display_text = string.format("  ↕ %d more lines  (%s to expand)", hidden, expand_key)
-        -- Replace sentinel content with empty (the extmark provides the display)
         vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { "" })
         vim.api.nvim_buf_set_extmark(bufnr, Jupyterm.ns_trunc, lnum - 1, 0, {
-          virt_text = { { display_text, "Comment" } },
+          virt_text = { { string.format("  ↕ %d more lines  (%s to expand)", hidden, expand_key), "Comment" } },
           virt_text_pos = "overlay",
           hl_mode = "replace",
         })
@@ -145,58 +185,42 @@ end
 --- Updates the output buffer incrementally (used by refresh timer).
 ---@param kernel string
 function display.update_output(kernel)
-  local w = Jupyterm.kernels[kernel].widget
+  local w = get_widget(kernel)
   if not w then return end
 
   local bufnr = w.buf_nrs.output
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
 
   local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
-  local inputs = kernel_lines[1]
-  local outputs = kernel_lines[2]
+  local inputs, outputs = kernel_lines[1], kernel_lines[2]
 
-  -- Check if we need a full re-render (new entries added)
   local in_top_marks = vim.api.nvim_buf_get_extmarks(bufnr, Jupyterm.ns_in_top, 0, -1, { details = true })
 
-  -- Count displayed entries (excluding ghost extmarks at row 0)
   local displayed_count = 0
   for _, e in ipairs(in_top_marks) do
-    if e[2] ~= 0 then
-      displayed_count = displayed_count + 1
-    end
+    if e[2] ~= 0 then displayed_count = displayed_count + 1 end
   end
 
-  -- Count non-variables entries
   local vars_cmd = Jupyterm.config.ui.repl.variables.command
   local actual_count = 0
   for _, inp in ipairs(inputs) do
-    if utils.strip(inp) ~= vars_cmd then
-      actual_count = actual_count + 1
-    end
+    if utils.strip(inp) ~= vars_cmd then actual_count = actual_count + 1 end
   end
 
-  -- If new entries exist, do full re-render
   if actual_count ~= displayed_count then
     display.render_output(kernel)
-    -- Auto-scroll to bottom
     if w.win_nrs.output and vim.api.nvim_win_is_valid(w.win_nrs.output) then
-      local buf_len = vim.api.nvim_buf_line_count(bufnr)
-      pcall(vim.api.nvim_win_set_cursor, w.win_nrs.output, { buf_len, 0 })
+      pcall(vim.api.nvim_win_set_cursor, w.win_nrs.output, { vim.api.nvim_buf_line_count(bufnr), 0 })
     end
     return
   end
 
-  -- Otherwise, update existing output cells in-place
   buf_helpers.with_modifiable(bufnr, function()
     for i = #in_top_marks - 1, 1, -1 do
       local e = in_top_marks[i]
       local extmark_row = e[2]
-      local extmark_details = e[4]
-
       if extmark_row ~= 0 then
-        local in_index = tonumber(string.match(extmark_details.virt_lines[2][1][1], "%d+"))
-
-        -- Update output cell
+        local in_index = tonumber(string.match(e[4].virt_lines[2][1][1], "%d+"))
         local out_top = utils.get_extmark_below_buf(bufnr, extmark_row, Jupyterm.ns_out_top)
         local out_bottom = utils.get_extmark_below_buf(bufnr, extmark_row, Jupyterm.ns_out_bottom)
         if out_top and out_bottom then
@@ -218,102 +242,10 @@ function display.update_output(kernel)
   end)
 end
 
---- Requests a variables update by sending the variables command.
----@param kernel string
-function display.request_variables(kernel)
-  if not Jupyterm.kernels[kernel] then return end
-  local vars_cmd = Jupyterm.config.ui.repl.variables.command
-  vim.fn.JupyEval(tostring(kernel), vars_cmd)
-  local output_len = vim.fn.JupyOutputLen(tostring(kernel))
-  Jupyterm.kernels[kernel].vars_output_idx = output_len
-end
-
---- Updates the variables buffer display from the latest variables output.
----@param kernel string
-function display.update_variables_display(kernel)
-  local w = Jupyterm.kernels[kernel].widget
-  if not w then return end
-
-  local vars_idx = Jupyterm.kernels[kernel].vars_output_idx
-  if not vars_idx then return end
-
-  local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
-  local outputs = kernel_lines[2]
-  local output = outputs[vars_idx]
-  if not output then return end
-
-  -- Don't update if still computing
-  if string.match(output, Jupyterm.config.ui.wait_str) or string.match(output, Jupyterm.config.ui.queue_str) then
-    return
-  end
-
-  local split_output = utils.split_by_newlines(output)
-  -- Remove duration line if present
-  if #split_output > 0 and string.match(split_output[#split_output], "^Duration:") then
-    table.remove(split_output)
-  end
-
-  buf_helpers.with_modifiable(w.buf_nrs.variables, function(bufnr)
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, split_output)
-  end)
-
-  -- Resize the variables pane to fit content
-  if w.win_nrs.variables and vim.api.nvim_win_is_valid(w.win_nrs.variables) then
-    local widget_layout = require("jupyterm.widget_layout")
-    widget_layout.open_variables(w.buf_nrs, w.win_nrs, Jupyterm.config.ui.repl.variables.max_height)
-  end
-end
-
---- Generates cell text
----@param commentstring string
----@param index integer cell number
----@param type string input or output cell - "In" or "Out" respectively
----@return Line
----@overload fun(commentstring: string, index: integer, type: string): Line,Line
----@private
-function display.generate_cell(commentstring, index, type)
-  local line1 = Line()
-  line1:append(
-    Text(
-      commentstring,
-      {
-        hl_group = "Jupyterm" .. type .. "Text",
-        hl_mode = "combine",
-        hl_eol = true,
-        virt_lines_above = true,
-        virt_lines = {
-          { {
-            "───────────────────────────────────────────────────────────────",
-            "Jupyterm" .. type .. "Text"
-          } },
-          { {
-            string.format(type .. " [%s]: ", index),
-            "Jupyterm" .. type .. "Text"
-          } },
-        }
-      }
-    ), {}
-  )
-  local line2 = Line()
-  line2:append(
-    Text(
-      "```",
-      {
-        hl_group = "Jupyterm" .. type .. "Text",
-        hl_mode = "combine",
-      }
-    ), {}
-  )
-  return line1, line2
-end
-
 --- Manually refreshes the output pane (full re-render).
 ---@param kernel? string
 function display.refresh_output(kernel)
-  if not kernel then
-    kernel = utils.find_kernel(vim.api.nvim_get_current_buf())
-  end
-  kernel = kernel or utils.get_kernel(kernel)
+  kernel = resolve_kernel(kernel)
   display.render_output(kernel)
   display.scroll_output_to_bottom(kernel)
 end
@@ -325,29 +257,68 @@ function display.scroll_output_to_bottom(kernel)
   if not w then return end
   local winid = w.win_nrs.output
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
-  local bufnr = w.buf_nrs.output
-  local buf_len = vim.api.nvim_buf_line_count(bufnr)
-  -- Scroll without changing the current window
   local cur_win = vim.api.nvim_get_current_win()
-  pcall(vim.api.nvim_win_set_cursor, winid, { buf_len, 0 })
+  pcall(vim.api.nvim_win_set_cursor, winid, { vim.api.nvim_buf_line_count(w.buf_nrs.output), 0 })
   if vim.api.nvim_win_is_valid(cur_win) then
     pcall(vim.api.nvim_set_current_win, cur_win)
   end
 end
 
---- Gets the filtered input history for a kernel (excludes variables commands).
+-- =========================================================================
+-- Variables pane
+-- =========================================================================
+
+--- Requests a variables update by sending the variables command.
 ---@param kernel string
----@return string[] inputs
----@private
+function display.request_variables(kernel)
+  if not Jupyterm.kernels[kernel] then return end
+  local vars_cmd = Jupyterm.config.ui.repl.variables.command
+  vim.fn.JupyEval(tostring(kernel), vars_cmd)
+  Jupyterm.kernels[kernel].vars_output_idx = vim.fn.JupyOutputLen(tostring(kernel))
+end
+
+--- Updates the variables buffer display from the latest variables output.
+---@param kernel string
+function display.update_variables_display(kernel)
+  local w = get_widget(kernel)
+  if not w then return end
+
+  local vars_idx = Jupyterm.kernels[kernel].vars_output_idx
+  if not vars_idx then return end
+
+  local output = vim.fn.JupyOutput(tostring(kernel))[2][vars_idx]
+  if not output then return end
+  if string.match(output, Jupyterm.config.ui.wait_str) or string.match(output, Jupyterm.config.ui.queue_str) then
+    return
+  end
+
+  local split_output = utils.split_by_newlines(output)
+  if #split_output > 0 and string.match(split_output[#split_output], "^Duration:") then
+    table.remove(split_output)
+  end
+
+  buf_helpers.with_modifiable(w.buf_nrs.variables, function(bufnr)
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, split_output)
+  end)
+
+  if w.win_nrs.variables and vim.api.nvim_win_is_valid(w.win_nrs.variables) then
+    require("jupyterm.widget_layout").open_variables(w.buf_nrs, w.win_nrs, Jupyterm.config.ui.repl.variables.max_height)
+  end
+end
+
+-- =========================================================================
+-- Input history
+-- =========================================================================
+
+--- Returns filtered input history for a kernel (excludes variables commands).
+---@param kernel string
+---@return string[]
 function display._get_input_history(kernel)
-  local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
-  local inputs = kernel_lines[1]
+  local inputs = vim.fn.JupyOutput(tostring(kernel))[1]
   local vars_cmd = Jupyterm.config.ui.repl.variables.command
   local filtered = {}
   for _, inp in ipairs(inputs) do
-    if utils.strip(inp) ~= vars_cmd then
-      table.insert(filtered, inp)
-    end
+    if utils.strip(inp) ~= vars_cmd then table.insert(filtered, inp) end
   end
   return filtered
 end
@@ -355,62 +326,43 @@ end
 --- Navigates to the previous command in input history.
 ---@param kernel? string
 function display.history_prev(kernel)
-  if not kernel then
-    kernel = utils.find_kernel(vim.api.nvim_get_current_buf())
-  end
-  kernel = kernel or utils.get_kernel(kernel)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  kernel = resolve_kernel(kernel)
+  local w = get_widget(kernel)
   if not w then return end
-
   local history = display._get_input_history(kernel)
   if #history == 0 then return end
-
-  local idx = Jupyterm.kernels[kernel].history_idx or (#history + 1)
-  idx = idx - 1
-  if idx < 1 then idx = 1 end
+  local idx = math.max((Jupyterm.kernels[kernel].history_idx or (#history + 1)) - 1, 1)
   Jupyterm.kernels[kernel].history_idx = idx
-
-  local entry = history[idx]
-  local lines = utils.split_by_newlines(entry)
-  vim.api.nvim_buf_set_lines(w.buf_nrs.input, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(w.buf_nrs.input, 0, -1, false, utils.split_by_newlines(history[idx]))
 end
 
 --- Navigates to the next command in input history.
 ---@param kernel? string
 function display.history_next(kernel)
-  if not kernel then
-    kernel = utils.find_kernel(vim.api.nvim_get_current_buf())
-  end
-  kernel = kernel or utils.get_kernel(kernel)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  kernel = resolve_kernel(kernel)
+  local w = get_widget(kernel)
   if not w then return end
-
   local history = display._get_input_history(kernel)
   if #history == 0 then return end
-
-  local idx = Jupyterm.kernels[kernel].history_idx or (#history + 1)
-  idx = idx + 1
+  local idx = (Jupyterm.kernels[kernel].history_idx or (#history + 1)) + 1
   if idx > #history then
-    -- Past the end: clear input buffer
     Jupyterm.kernels[kernel].history_idx = #history + 1
-    vim.api.nvim_buf_set_lines(w.buf_nrs.input, 0, -1, false, {""})
+    vim.api.nvim_buf_set_lines(w.buf_nrs.input, 0, -1, false, { "" })
     return
   end
   Jupyterm.kernels[kernel].history_idx = idx
-
-  local entry = history[idx]
-  local lines = utils.split_by_newlines(entry)
-  vim.api.nvim_buf_set_lines(w.buf_nrs.input, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(w.buf_nrs.input, 0, -1, false, utils.split_by_newlines(history[idx]))
 end
 
---- Copies the input block under the cursor in the output pane to the input pane and starts editing.
+-- =========================================================================
+-- Output pane interactions
+-- =========================================================================
+
+--- Copies the input block under the cursor to the input pane for editing.
 ---@param kernel? string
 function display.yank_block_to_input(kernel)
-  if not kernel then
-    kernel = utils.find_kernel(vim.api.nvim_get_current_buf())
-  end
-  kernel = kernel or utils.get_kernel(kernel)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  kernel = resolve_kernel(kernel)
+  local w = get_widget(kernel)
   if not w then return end
 
   local bufnr = w.buf_nrs.output
@@ -418,31 +370,18 @@ function display.yank_block_to_input(kernel)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
 
   local cursor = vim.api.nvim_win_get_cursor(winid)
-  local top_in = utils.get_extmark_above_buf(bufnr, cursor[1], Jupyterm.ns_in_top)
-  local bottom_in = utils.get_extmark_below_buf(bufnr, cursor[1], Jupyterm.ns_in_bottom)
+  local top_in  = utils.get_extmark_above_buf(bufnr, cursor[1], Jupyterm.ns_in_top)
+  local bot_in  = utils.get_extmark_below_buf(bufnr, cursor[1], Jupyterm.ns_in_bottom)
   local top_out = utils.get_extmark_above_buf(bufnr, cursor[1], Jupyterm.ns_out_top)
 
-  -- Don't yank from output sections
-  if top_in and top_out and top_out[2] > top_in[2] then return end
   if not top_in then return end
+  if top_in and top_out and top_out[2] > top_in[2] then return end
 
-  local top = top_in[2] + 1
-  local bottom
-  if bottom_in then
-    bottom = bottom_in[2]
-  else
-    bottom = vim.api.nvim_buf_line_count(bufnr)
-  end
-
-  local lines = vim.api.nvim_buf_get_lines(bufnr, top, bottom, false)
-
-  -- Strip trailing empty lines
-  while #lines > 0 and utils.strip(lines[#lines]) == "" do
-    table.remove(lines)
-  end
+  local bottom = bot_in and bot_in[2] or vim.api.nvim_buf_line_count(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, top_in[2] + 1, bottom, false)
+  while #lines > 0 and utils.strip(lines[#lines]) == "" do table.remove(lines) end
   if #lines == 0 then return end
 
-  -- Set input buffer content and focus it
   vim.api.nvim_buf_set_lines(w.buf_nrs.input, 0, -1, false, lines)
   if w.win_nrs.input and vim.api.nvim_win_is_valid(w.win_nrs.input) then
     vim.api.nvim_set_current_win(w.win_nrs.input)
@@ -450,96 +389,11 @@ function display.yank_block_to_input(kernel)
   end
 end
 
---- Toggles a keymap help menu for repl
----@param kernel string?
-function display.show_repl_help(kernel)
-  kernel = utils.get_kernel(kernel)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
-  if not w then return end
-
-  -- Show keymaps relevant to the current pane
-  local cur_buf = vim.api.nvim_get_current_buf()
-  local pane_keymaps
-  if cur_buf == w.buf_nrs.output then
-    pane_keymaps = Jupyterm.config.ui.repl.output_keymaps or {}
-  else
-    pane_keymaps = Jupyterm.config.ui.repl.input_keymaps or {}
-  end
-
-  local all_keymaps = {}
-  for _, k in ipairs(pane_keymaps) do
-    table.insert(all_keymaps, k)
-  end
-  for _, k in ipairs(Jupyterm.config.ui.repl.global_keymaps or {}) do
-    table.insert(all_keymaps, k)
-  end
-
-  local popup_opts = {
-    position = {
-      row = 2,
-      col = 0,
-    },
-    anchor = "NW",
-    relative = "cursor",
-    size = {
-      width = "50%",
-      height = #all_keymaps,
-    },
-    buf_options = {
-      modifiable = false,
-      readonly = true,
-      buftype = "nofile",
-      bufhidden = "hide",
-      swapfile = false,
-    },
-    border = {
-      style = "double",
-      text = {
-        top = "REPL Help",
-        top_align = "center",
-      },
-    },
-    enter = false,
-    focusable = false,
-  }
-  local help_menu = Popup(popup_opts)
-  for i, k in ipairs(all_keymaps) do
-    local h = Line({
-      Text(k[4], "Title"),
-      Text(": ", "Title"),
-      Text(k[2], "SpecialKey")
-    })
-    h:render(help_menu.bufnr, help_menu.ns_id, i)
-  end
-  local bufnr = vim.api.nvim_get_current_buf()
-
-  local function dismiss()
-    help_menu:unmount()
-    pcall(vim.keymap.del, "n", "q", { buffer = bufnr })
-    pcall(vim.keymap.del, "n", "<Esc>", { buffer = bufnr })
-  end
-
-  vim.keymap.set("n", "q", dismiss, { buffer = bufnr, nowait = true })
-  vim.keymap.set("n", "<Esc>", dismiss, { buffer = bufnr, nowait = true })
-
-  vim.api.nvim_create_autocmd({ "ModeChanged", "CursorMoved" }, {
-    group = "Jupyterm",
-    callback = dismiss,
-    once = true,
-    buffer = bufnr,
-  })
-  help_menu:mount()
-end
-
 --- Opens the full output of the block under the cursor in a floating popup.
---- Useful when an output has been truncated by max_output_lines.
----@param kernel string?
+---@param kernel? string
 function display.expand_output_block(kernel)
-  if not kernel then
-    kernel = utils.find_kernel(vim.api.nvim_get_current_buf())
-  end
-  kernel = kernel or utils.get_kernel(kernel)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  kernel = resolve_kernel(kernel)
+  local w = get_widget(kernel)
   if not w then return end
 
   local bufnr = w.buf_nrs.output
@@ -550,65 +404,88 @@ function display.expand_output_block(kernel)
   local top_out = utils.get_extmark_above_buf(bufnr, cursor[1], Jupyterm.ns_out_top)
   if not top_out then return end
 
-  -- Extract the output index from the extmark virtual text
   local ind = tonumber(string.match(top_out[4].virt_lines[2][1][1], "%d+"))
   if not ind then return end
 
-  local outputs = vim.fn.JupyOutput(tostring(kernel))[2]
-  local output = outputs[ind]
+  local output = vim.fn.JupyOutput(tostring(kernel))[2][ind]
   if not output then return end
 
-  local split_output = utils.split_by_newlines(output)
-  -- Strip trailing empty lines
-  while #split_output > 0 and utils.strip(split_output[#split_output]) == "" do
-    table.remove(split_output)
-  end
-  if #split_output == 0 then return end
+  local lines = utils.split_by_newlines(output)
+  while #lines > 0 and utils.strip(lines[#lines]) == "" do table.remove(lines) end
+  if #lines == 0 then return end
 
-  local kernel_name = Jupyterm.kernels[kernel].kernel_name
-  local height = math.min(math.max(#split_output, 5), math.floor(vim.o.lines * 0.6))
-
+  local height = math.min(math.max(#lines, 5), math.floor(vim.o.lines * 0.6))
   local popup = Popup({
-    relative = "editor",
-    position = "50%",
+    relative = "editor", position = "50%",
     size = { width = "70%", height = height },
-    enter = true,
-    focusable = true,
+    enter = true, focusable = true,
     buf_options = {
-      buftype = "nofile",
-      bufhidden = "wipe",
-      swapfile = false,
-      filetype = "jupyterm-repl-" .. kernel_name,
+      buftype = "nofile", bufhidden = "wipe", swapfile = false,
+      filetype = "jupyterm-repl-" .. Jupyterm.kernels[kernel].kernel_name,
     },
-    border = {
-      style = "rounded",
-      text = {
-        top = string.format(" Out [%d] ", ind),
-        top_align = "center",
-        bottom = " q / <Esc> close ",
-        bottom_align = "center",
-      },
-    },
+    border = { style = "rounded", text = {
+      top = string.format(" Out [%d] ", ind), top_align = "center",
+      bottom = " q / <Esc> close ", bottom_align = "center",
+    }},
   })
   popup:mount()
-  vim.api.nvim_buf_set_lines(popup.bufnr, 0, -1, false, split_output)
+  vim.api.nvim_buf_set_lines(popup.bufnr, 0, -1, false, lines)
   vim.api.nvim_set_option_value("modifiable", false, { buf = popup.bufnr })
 
   local function close() popup:unmount() end
   popup:map("n", "q",     close, {}, true)
   popup:map("n", "<Esc>", close, {}, true)
-  vim.api.nvim_create_autocmd("BufLeave", {
-    buffer = popup.bufnr,
-    once = true,
-    callback = close,
-  })
+  vim.api.nvim_create_autocmd("BufLeave", { buffer = popup.bufnr, once = true, callback = close })
 end
 
---- Jumps to the previous display block in the output pane.
----@param kernel string?
+--- Shows a keymap help popup for the current pane.
+---@param kernel? string
+function display.show_repl_help(kernel)
+  kernel = utils.get_kernel(kernel)
+  local w = get_widget(kernel)
+  if not w then return end
+
+  local cur_buf = vim.api.nvim_get_current_buf()
+  local pane_keymaps = (cur_buf == w.buf_nrs.output)
+    and Jupyterm.config.ui.repl.output_keymaps
+    or  Jupyterm.config.ui.repl.input_keymaps
+
+  local all_keymaps = {}
+  for _, k in ipairs(pane_keymaps or {}) do table.insert(all_keymaps, k) end
+  for _, k in ipairs(Jupyterm.config.ui.repl.global_keymaps or {}) do table.insert(all_keymaps, k) end
+
+  local help_menu = Popup({
+    anchor = "NW", relative = "cursor",
+    position = { row = 2, col = 0 },
+    size = { width = "50%", height = #all_keymaps },
+    buf_options = { modifiable = false, readonly = true, buftype = "nofile", bufhidden = "hide", swapfile = false },
+    border = { style = "double", text = { top = "REPL Help", top_align = "center" } },
+    enter = false, focusable = false,
+  })
+  for i, k in ipairs(all_keymaps) do
+    Line({ Text(k[4], "Title"), Text(": ", "Title"), Text(k[2], "SpecialKey") })
+      :render(help_menu.bufnr, help_menu.ns_id, i)
+  end
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  local function dismiss()
+    help_menu:unmount()
+    pcall(vim.keymap.del, "n", "q",     { buffer = bufnr })
+    pcall(vim.keymap.del, "n", "<Esc>", { buffer = bufnr })
+  end
+  vim.keymap.set("n", "q",     dismiss, { buffer = bufnr, nowait = true })
+  vim.keymap.set("n", "<Esc>", dismiss, { buffer = bufnr, nowait = true })
+  vim.api.nvim_create_autocmd({ "ModeChanged", "CursorMoved" }, {
+    group = "Jupyterm", once = true, buffer = bufnr, callback = dismiss,
+  })
+  help_menu:mount()
+end
+
+--- Jumps to the previous In block in the output pane.
+---@param kernel? string
 function display.jump_display_block_up(kernel)
   kernel = utils.get_kernel(kernel)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  local w = get_widget(kernel)
   if not w then return end
 
   local winid = w.win_nrs.output
@@ -616,13 +493,10 @@ function display.jump_display_block_up(kernel)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
 
   local cur_line = vim.api.nvim_win_get_cursor(winid)[1]
-  local out_above = utils.get_extmark_above_buf(bufnr, cur_line, Jupyterm.ns_out_top)
-  local in_above = utils.get_extmark_above_buf(bufnr, cur_line, Jupyterm.ns_in_top)
+  local out_row = (utils.get_extmark_above_buf(bufnr, cur_line, Jupyterm.ns_out_top) or {})[2]
+  local in_row  = (utils.get_extmark_above_buf(bufnr, cur_line, Jupyterm.ns_in_top)  or {})[2]
 
-  local out_row = out_above and out_above[2]
-  local in_row = in_above and in_above[2]
-
-  if out_row and in_row and (in_row > out_row) then
+  if out_row and in_row and in_row > out_row then
     cur_line = in_row - 1
   elseif out_row then
     cur_line = out_row
@@ -632,47 +506,37 @@ function display.jump_display_block_up(kernel)
     return
   end
 
-  in_above = utils.get_extmark_above_buf(bufnr, cur_line, Jupyterm.ns_in_top)
-  if in_above then
-    vim.api.nvim_win_set_cursor(winid, { in_above[2] + 2, 0 })
-  end
+  local mark = utils.get_extmark_above_buf(bufnr, cur_line, Jupyterm.ns_in_top)
+  if mark then vim.api.nvim_win_set_cursor(winid, { mark[2] + 2, 0 }) end
 end
 
---- Jumps to the next display block in the output pane.
----@param kernel string?
+--- Jumps to the next In block in the output pane.
+---@param kernel? string
 function display.jump_display_block_down(kernel)
   kernel = utils.get_kernel(kernel)
-  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  local w = get_widget(kernel)
   if not w then return end
 
   local winid = w.win_nrs.output
   local bufnr = w.buf_nrs.output
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
 
-  local cur_line = vim.api.nvim_win_get_cursor(winid)[1]
-  local in_below = utils.get_extmark_below_buf(bufnr, cur_line, Jupyterm.ns_in_top)
-  if in_below then
-    vim.api.nvim_win_set_cursor(winid, { in_below[2] + 2, 0 })
-  end
+  local mark = utils.get_extmark_below_buf(bufnr, vim.api.nvim_win_get_cursor(winid)[1], Jupyterm.ns_in_top)
+  if mark then vim.api.nvim_win_set_cursor(winid, { mark[2] + 2, 0 }) end
 end
 
 -- =========================================================================
--- Virtual text functions (unchanged — operate on source code buffers)
+-- Virtual text (inline outputs in source buffers)
 -- =========================================================================
 
---- Toggles virtual text.
----@param kernel string?
+--- Toggles virtual text display for a kernel.
+---@param kernel? string
 function display.toggle_virt_text(kernel)
   kernel = utils.get_kernel(kernel)
-
-  -- Auto start if not started
   if not Jupyterm.kernels[kernel] then
-    local ft = vim.bo.filetype
-    local kernel_name = Jupyterm.lang_to_kernel[ft] or Jupyterm.lang_to_kernel["python"]
-    local manage_kernels = require("jupyterm.manage_kernels")
-    manage_kernels.start_kernel(nil, nil, kernel_name)
+    local kernel_name = Jupyterm.lang_to_kernel[vim.bo.filetype] or Jupyterm.lang_to_kernel["python"]
+    require("jupyterm.manage_kernels").start_kernel(nil, nil, kernel_name)
   end
-
   if utils.is_virt_text_showing(kernel) then
     display.hide_all_virt_text(kernel)
     Jupyterm.kernels[kernel].show_virt = false
@@ -682,7 +546,7 @@ function display.toggle_virt_text(kernel)
   end
 end
 
---- Shows all virtual text.
+--- Shows all virtual text for a kernel.
 ---@param kernel string
 function display.show_all_virt_text(kernel)
   for oloc = 1, vim.fn.JupyOutputLen(tostring(kernel)) do
@@ -693,119 +557,66 @@ function display.show_all_virt_text(kernel)
   end
 end
 
---- Hides all virtual text.
+--- Hides all virtual text for a kernel.
 ---@param kernel string
 function display.hide_all_virt_text(kernel)
-  vim.api.nvim_buf_clear_namespace(
-    Jupyterm.kernels[kernel].virt_buf,
-    Jupyterm.ns_virt,
-    0,
-    -1
-  )
-  Jupyterm.kernels[kernel].virt_olocs = {}
+  vim.api.nvim_buf_clear_namespace(Jupyterm.kernels[kernel].virt_buf, Jupyterm.ns_virt, 0, -1)
+  Jupyterm.kernels[kernel].virt_olocs   = {}
   Jupyterm.kernels[kernel].virt_extmarks = {}
 end
 
---- Updates all virtual text.
+--- Updates all virtual text extmarks in-place.
 ---@param kernel string
----@private
 function display.update_all_virt_text(kernel)
-  local buf = Jupyterm.kernels[kernel].virt_buf
-  local olocs = Jupyterm.kernels[kernel].virt_olocs
-  local extmarks = vim.api.nvim_buf_get_extmarks(buf, Jupyterm.ns_virt, 0, -1, { details = true })
+  local buf     = Jupyterm.kernels[kernel].virt_buf
+  local olocs   = Jupyterm.kernels[kernel].virt_olocs
   local outputs = vim.fn.JupyOutput(tostring(kernel))[2]
-  for _, e in ipairs(extmarks) do
+  for _, e in ipairs(vim.api.nvim_buf_get_extmarks(buf, Jupyterm.ns_virt, 0, -1, { details = true })) do
     local oloc = olocs[e[1]]
-
-    local vl = outputs[oloc] or ""
-    local text_hl_group = "JupytermVirtQueued"
-    if string.match(vl, Jupyterm.config.ui.wait_str) then
-      text_hl_group = "JupytermVirtComputing"
-    elseif string.match(vl, "Error") then
-      text_hl_group = "JupytermVirtError"
-    else
-      text_hl_group = "JupytermVirtCompleted"
+    local hl   = virt_hl(outputs[oloc] or "")
+    local opts = {
+      id = e[1], sign_text = e[4].sign_text, sign_hl_group = hl,
+      hl_group = e[4].hl_group, invalidate = true, undo_restore = false,
+    }
+    if e[4].virt_lines then
+      opts.end_row = e[4].end_row; opts.end_col = e[4].end_col
+      opts.virt_lines = display.split_virt_text(outputs[oloc], hl)
     end
-
-    local formatted_output = display.split_virt_text(outputs[oloc], text_hl_group)
-    if e[#e].virt_lines then
-      vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], {
-        id = e[1],
-        end_row = e[#e].end_row,
-        end_col = e[#e].end_col,
-        virt_lines = formatted_output,
-        sign_text = e[#e].sign_text,
-        sign_hl_group = text_hl_group,
-        hl_group = e[#e].hl_group,
-        invalidate = true,
-        undo_restore = false,
-      })
-    else
-      vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], {
-        id = e[1],
-        sign_text = e[#e].sign_text,
-        sign_hl_group = text_hl_group,
-        hl_group = e[#e].hl_group,
-        invalidate = true,
-        undo_restore = false,
-      })
-    end
+    vim.api.nvim_buf_set_extmark(buf, Jupyterm.ns_virt, e[2], e[3], opts)
   end
 end
 
---- Shows virtual text corresponding to a kernel output at rows/cols specified.
+--- Shows virtual text for a kernel output at the specified source range.
 ---@param kernel string
----@param output_num integer? kernel output number
+---@param output_num integer?
 ---@param start_row integer
 ---@param end_row integer
 ---@param start_col integer?
 ---@param end_col integer?
----@param hl string? highlight group
----@private
+---@param hl string?
 function display.show_virt_text(kernel, output_num, start_row, end_row, start_col, end_col, hl)
   display.delete_virt_text(kernel, start_row, end_row)
 
-  local kernel_lines = vim.fn.JupyOutput(tostring(kernel))
-  local output = kernel_lines[2]
+  local output = vim.fn.JupyOutput(tostring(kernel))[2]
   local end_line = vim.api.nvim_buf_get_lines(0, end_row, end_row + 1, false)[1]
-  local line_len = string.len(end_line)
   output_num = output_num or #output
 
+  local text_hl = virt_hl(output[output_num] or "")
+  local formatted = display.split_virt_text(output[output_num], text_hl)
+  local sign = string.sub(tostring(output_num), -2, -1)
+
   for row = start_row, end_row do
-    local virt_id = nil
-
-    local vl = output[output_num] or ""
-    local text_hl_group = "JupytermVirtQueued"
-    if string.match(vl, Jupyterm.config.ui.wait_str) then
-      text_hl_group = "JupytermVirtComputing"
-    elseif string.match(vl, "Error") then
-      text_hl_group = "JupytermVirtError"
-    else
-      text_hl_group = "JupytermVirtCompleted"
-    end
-
-    local formatted_output = display.split_virt_text(output[output_num], text_hl_group)
+    local opts = {
+      sign_text = sign, sign_hl_group = text_hl,
+      hl_group = hl, invalidate = true, undo_restore = false,
+    }
     if row == end_row then
       start_col = start_col or 0
-      end_col = end_col or line_len
-      virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, start_col, {
-        end_col = end_col,
-        virt_lines = formatted_output,
-        sign_text = string.sub(tostring(output_num), -2, -1),
-        sign_hl_group = text_hl_group,
-        hl_group = hl,
-        invalidate = true,
-        undo_restore = false,
-      })
-    else
-      virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, 0, {
-        sign_text = string.sub(tostring(output_num), -2, -1),
-        sign_hl_group = text_hl_group,
-        hl_group = hl,
-        invalidate = true,
-        undo_restore = false,
-      })
+      end_col   = end_col   or string.len(end_line)
+      opts.end_col    = end_col
+      opts.virt_lines = formatted
     end
+    local virt_id = vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, row, row == end_row and start_col or 0, opts)
     Jupyterm.kernels[kernel].virt_olocs[virt_id] = output_num
     if Jupyterm.kernels[kernel].virt_extmarks[output_num] then
       table.insert(Jupyterm.kernels[kernel].virt_extmarks[output_num], virt_id)
@@ -816,123 +627,89 @@ function display.show_virt_text(kernel, output_num, start_row, end_row, start_co
   Jupyterm.kernels[kernel].virt_buf = vim.api.nvim_get_current_buf()
 end
 
----Toggles virtual text at row (or under cursor)
+--- Toggles virtual text at a row (or cursor row).
 ---@param kernel? string
 ---@param row? integer
 function display.toggle_virt_text_at_row(kernel, row)
   kernel = utils.get_kernel(kernel)
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
 
-  local overlap_extmark = vim.api.nvim_buf_get_extmarks(
-    0,
-    Jupyterm.ns_virt,
-    { row, 0 },
-    { row, 0 },
-    { details = true }
-  )
-
-  local lines_showing = false
-
-  if #overlap_extmark > 0 then
-    local oe = overlap_extmark[1]
-    local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
-    local extmarks = Jupyterm.kernels[kernel].virt_extmarks[oloc]
-    for _, e_id in ipairs(extmarks) do
-      local e = vim.api.nvim_buf_get_extmark_by_id(0, Jupyterm.ns_virt, e_id, { details = true })
-      if e[#e].virt_lines then
-        lines_showing = true
+  local overlap = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, { row, 0 }, { row, 0 }, { details = true })
+  local showing = false
+  if #overlap > 0 then
+    local oloc = Jupyterm.kernels[kernel].virt_olocs[overlap[1][1]]
+    for _, e_id in ipairs(Jupyterm.kernels[kernel].virt_extmarks[oloc] or {}) do
+      if vim.api.nvim_buf_get_extmark_by_id(0, Jupyterm.ns_virt, e_id, { details = true })[3].virt_lines then
+        showing = true; break
       end
     end
   end
-
-  if lines_showing then
-    display.hide_virt_text_at_row(kernel, row)
-  else
-    display.show_virt_text_at_row(kernel, row)
-  end
+  if showing then display.hide_virt_text_at_row(kernel, row)
+  else            display.show_virt_text_at_row(kernel, row) end
 end
 
---- Deletes virtual text in range.
+--- Deletes virtual text extmarks in a row range.
 ---@param kernel string
 ---@param start_row? integer
 ---@param end_row? integer
----@private
 function display.delete_virt_text(kernel, start_row, end_row)
   start_row = start_row or vim.api.nvim_win_get_cursor(0)[1] - 1
-  end_row = end_row or start_row
-
-  local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, { start_row, 0 }, { end_row, 0 }, { details = true })
-  for _, oe in ipairs(overlap_extmarks) do
+  end_row   = end_row   or start_row
+  for _, oe in ipairs(vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, { start_row, 0 }, { end_row, 0 }, { details = true })) do
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
-    if Jupyterm.kernels[kernel].virt_extmarks[oloc] then
-      for _, e_id in ipairs(Jupyterm.kernels[kernel].virt_extmarks[oloc]) do
-        vim.api.nvim_buf_del_extmark(0, Jupyterm.ns_virt, e_id)
-        Jupyterm.kernels[kernel].virt_olocs[e_id] = nil
-      end
-      Jupyterm.kernels[kernel].virt_extmarks[oloc] = {}
+    for _, e_id in ipairs(Jupyterm.kernels[kernel].virt_extmarks[oloc] or {}) do
+      vim.api.nvim_buf_del_extmark(0, Jupyterm.ns_virt, e_id)
+      Jupyterm.kernels[kernel].virt_olocs[e_id] = nil
     end
+    Jupyterm.kernels[kernel].virt_extmarks[oloc] = {}
   end
 end
 
---- Hides virtual text at row.
+--- Hides virtual text at a row (keeps sign, removes virt_lines).
 ---@param kernel string
 ---@param row? integer
----@private
 function display.hide_virt_text_at_row(kernel, row)
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
-
-  local overlap_extmarks = vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, { row, 0 }, { row, 0 }, { details = true })
-  for _, oe in ipairs(overlap_extmarks) do
+  for _, oe in ipairs(vim.api.nvim_buf_get_extmarks(0, Jupyterm.ns_virt, { row, 0 }, { row, 0 }, { details = true })) do
     local oloc = Jupyterm.kernels[kernel].virt_olocs[oe[1]]
-    local extmarks = Jupyterm.kernels[kernel].virt_extmarks[oloc]
-    for _, e_id in ipairs(extmarks) do
+    for _, e_id in ipairs(Jupyterm.kernels[kernel].virt_extmarks[oloc] or {}) do
       local e = vim.api.nvim_buf_get_extmark_by_id(0, Jupyterm.ns_virt, e_id, { details = true })
       vim.api.nvim_buf_set_extmark(0, Jupyterm.ns_virt, e[1], e[2], {
         id = e_id,
         sign_text = string.sub(tostring(oloc), -2, -1),
-        sign_hl_group = e[#e].sign_hl_group,
-        hl_group = e[#e].hl_group,
-        invalidate = true,
-        undo_restore = false,
+        sign_hl_group = e[3].sign_hl_group,
+        hl_group = e[3].hl_group,
+        invalidate = true, undo_restore = false,
       })
     end
   end
 end
 
---- Shows virtual text at a specific row.
+--- Shows virtual text at a row (or cursor row).
 ---@param kernel string
 ---@param row? integer
----@private
 function display.show_virt_text_at_row(kernel, row)
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
-
   for oloc = vim.fn.JupyOutputLen(tostring(kernel)), 1, -1 do
     local vt = Jupyterm.kernels[kernel].virt_text[oloc]
-    if vt and (row >= vt.start_row) and (row <= vt.end_row) then
+    if vt and row >= vt.start_row and row <= vt.end_row then
       display.show_virt_text(kernel, oloc, vt.start_row, vt.end_row, vt.start_col, vt.end_col, vt.hl)
       return
     end
   end
 end
 
---- Splits virtual text by newlines into a table of lines for virt_lines.
----@param text string text to split
----@param hl string hl group for the text
----@return table? table of lines with highlight info
----@private
+--- Formats output text into virt_lines table.
+---@param text string
+---@param hl string
+---@return table?
 function display.split_virt_text(text, hl)
-  local split_text = utils.split_by_newlines(text)
   local result = {}
-  for _, st in ipairs(split_text) do
-    table.insert(result, { { st, hl } })
+  for _, line in ipairs(utils.split_by_newlines(text)) do
+    table.insert(result, { { line, hl } })
   end
-  if #result == 1 then
-    if result[1][1][1] ~= "" then
-      return result
-    end
-  else
-    return result
-  end
+  if #result == 1 and result[1][1][1] == "" then return nil end
+  return result
 end
 
 --- Expands virtual text into a popup.
@@ -942,43 +719,23 @@ function display.expand_virt_text(kernel, row)
   kernel = utils.get_kernel(kernel)
   row = row or vim.api.nvim_win_get_cursor(0)[1] - 1
 
-  local buf = Jupyterm.kernels[kernel].virt_buf
+  local buf     = Jupyterm.kernels[kernel].virt_buf
   local extmark = vim.api.nvim_buf_get_extmarks(buf, Jupyterm.ns_virt, { row, 0 }, { row, -1 }, { details = true })[1]
-  local oloc = Jupyterm.kernels[kernel].virt_olocs[extmark[1]]
-  local output = vim.fn.JupyOutput(tostring(kernel))[2][oloc]
-  local kernel_name = Jupyterm.kernels[kernel].kernel_name
+  local oloc    = Jupyterm.kernels[kernel].virt_olocs[extmark[1]]
+  local output  = vim.fn.JupyOutput(tostring(kernel))[2][oloc]
+
   local popup = Popup({
-    position = {
-      row = 0,
-      col = 0,
-    },
-    anchor = "NW",
-    relative = "cursor",
-    size = {
-      width = "100%",
-      height = "25%",
-    },
-    enter = true,
-    focusable = true,
-    buf_options = {
-      buftype = "nofile",
-      bufhidden = "hide",
-      swapfile = false,
-      filetype = "jupyterm-" .. kernel_name
-    },
-    win_options = {
-      winhighlight = "FloatBorder:" .. extmark[4].sign_hl_group,
-    },
-    border = {
-      style = "double"
-    }
+    anchor = "NW", relative = "cursor", position = { row = 0, col = 0 },
+    size = { width = "100%", height = "25%" },
+    enter = true, focusable = true,
+    buf_options = { buftype = "nofile", bufhidden = "hide", swapfile = false,
+                    filetype = "jupyterm-" .. Jupyterm.kernels[kernel].kernel_name },
+    win_options = { winhighlight = "FloatBorder:" .. extmark[4].sign_hl_group },
+    border = { style = "double" },
   })
   popup:mount()
-  popup:on("BufLeave", function()
-    popup:unmount()
-  end, { once = true })
-  local split_output = utils.split_by_newlines(output)
-  vim.api.nvim_buf_set_lines(popup.bufnr, 0, 1, false, split_output)
+  popup:on("BufLeave", function() popup:unmount() end, { once = true })
+  vim.api.nvim_buf_set_lines(popup.bufnr, 0, 1, false, utils.split_by_newlines(output))
 end
 
 return display
