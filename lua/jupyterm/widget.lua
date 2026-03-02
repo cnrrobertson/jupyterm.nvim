@@ -35,6 +35,10 @@ function widget.create(kernel)
     vim.api.nvim_create_autocmd("BufWinLeave", {
       buffer = bufnr,
       callback = function()
+        -- Ignore BufWinLeave that fires when the input popup opens/closes
+        if widget._popping_input then return end
+        local w2 = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+        if w2 and w2._popup_win then return end
         widget.hide(kernel)
       end,
     })
@@ -50,6 +54,12 @@ function widget.create(kernel)
   vim.api.nvim_create_autocmd("QuitPre", {
     buffer = input_buf,
     callback = function()
+      local w2 = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+      -- If the window being quit is the popup, close only the popup
+      if w2 and w2._popup_win and vim.fn.win_getid() == w2._popup_win then
+        widget.pop_input_close(kernel)
+        return
+      end
       widget._close_siblings(kernel, "input")
     end,
   })
@@ -63,11 +73,15 @@ end
 function widget._bind_input_keymaps(input_buf)
   local function apply_keymaps()
     if not vim.api.nvim_buf_is_valid(input_buf) then return end
-    for _, k in ipairs(Jupyterm.config.ui.repl.input_keymaps) do
-      vim.keymap.set(k[1], k[2], k[3], { desc = k[4], buffer = input_buf, nowait = true })
+    -- Don't overwrite popup keymaps while the popup is open
+    local kernel = utils.find_kernel(input_buf)
+    local w = kernel and Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+    if w and w._popup_win and vim.api.nvim_win_is_valid(w._popup_win) then return end
+    for _, km in ipairs(Jupyterm.config.ui.repl.input_keymaps) do
+      vim.keymap.set(km[1], km[2], km[3], { desc = km[4], buffer = input_buf, nowait = true })
     end
-    for _, k in ipairs(Jupyterm.config.ui.repl.global_keymaps) do
-      vim.keymap.set(k[1], k[2], k[3], { desc = k[4], buffer = input_buf, nowait = true })
+    for _, km in ipairs(Jupyterm.config.ui.repl.global_keymaps) do
+      vim.keymap.set(km[1], km[2], km[3], { desc = km[4], buffer = input_buf, nowait = true })
     end
   end
 
@@ -141,6 +155,8 @@ end
 function widget._close_siblings(kernel, except)
   local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
   if not w then return end
+  -- If the popup is open, :q on the popup window should just close the popup
+  if widget._popping_input then return end
   widget._closing = true
   for _, winid in pairs(w.win_nrs) do
     if winid and vim.api.nvim_win_is_valid(winid) then
@@ -159,7 +175,7 @@ end
 --- Hides all widget windows for a kernel (preserves buffers).
 ---@param kernel string
 function widget.hide(kernel)
-  if widget._closing then return end
+  if widget._closing or widget._popping_input then return end
   local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
   if not w then return end
 
@@ -268,6 +284,37 @@ function widget.toggle_variables(kernel)
   end
 end
 
+--- Closes the input popup if open, without hiding the main widget.
+--- Called by keymaps, QuitPre, and BufWinLeave guards.
+---@param kernel string
+function widget.pop_input_close(kernel)
+  local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
+  if not w or not w._popup_win then return end
+  if not vim.api.nvim_win_is_valid(w._popup_win) then
+    w._popup_win = nil
+    w._popup_border_win = nil
+    w._popup_border_buf = nil
+    return
+  end
+  widget._popping_input = true
+  local content_win  = w._popup_win
+  local border_win   = w._popup_border_win
+  local border_buf   = w._popup_border_buf
+  w._popup_win        = nil
+  w._popup_border_win = nil
+  w._popup_border_buf = nil
+  pcall(vim.api.nvim_win_close, content_win, true)
+  if border_win then pcall(vim.api.nvim_win_close, border_win, true) end
+  if border_buf then pcall(vim.api.nvim_buf_delete, border_buf, { force = true }) end
+  widget._popping_input = false
+  widget._bind_input_keymaps(w.buf_nrs.input)
+  vim.schedule(function()
+    if w.win_nrs.input and vim.api.nvim_win_is_valid(w.win_nrs.input) then
+      vim.api.nvim_set_current_win(w.win_nrs.input)
+    end
+  end)
+end
+
 --- Opens the input buffer in a centered floating popup for easier editing.
 ---@param kernel? string
 function widget.pop_input(kernel)
@@ -275,45 +322,73 @@ function widget.pop_input(kernel)
   local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
   if not w then return end
 
-  local Popup = require("nui.popup")
-  local input_buf = w.buf_nrs.input
+  -- Don't open a second popup if one is already active
+  if w._popup_win and vim.api.nvim_win_is_valid(w._popup_win) then
+    vim.api.nvim_set_current_win(w._popup_win)
+    return
+  end
 
-  local popup = Popup({
-    bufnr = input_buf,
-    enter = true,
-    focusable = true,
+  local input_buf = w.buf_nrs.input
+  local width  = math.floor(vim.o.columns * 0.6)
+  local height = math.floor(vim.o.lines   * 0.5)
+  local row    = math.floor((vim.o.lines   - height) / 2) - 1
+  local col    = math.floor((vim.o.columns - width)  / 2)
+
+  -- Border window (decorative, not focusable)
+  local border_buf = vim.api.nvim_create_buf(false, true)
+  local top_line    = "╭" .. string.rep("─", width - 2) .. "╮"
+  local mid_line    = "│" .. string.rep(" ", width - 2) .. "│"
+  local bottom_line = "╰" .. string.rep("─", width - 2) .. "╯"
+  local border_lines = { top_line }
+  for _ = 1, height do table.insert(border_lines, mid_line) end
+  table.insert(border_lines, bottom_line)
+  vim.api.nvim_buf_set_lines(border_buf, 0, -1, false, border_lines)
+  vim.api.nvim_set_option_value("modifiable", false, { buf = border_buf })
+
+  local border_win = vim.api.nvim_open_win(border_buf, false, {
     relative = "editor",
-    position = "50%",
-    size = {
-      width = "60%",
-      height = "50%",
-    },
-    border = {
-      style = "rounded",
-      text = {
-        top = " Input ",
-        top_align = "center",
-        bottom = " Run: cr | Close: q/esc ",
-        bottom_align = "center",
-      },
-    },
+    row = row,
+    col = col,
+    width = width,
+    height = height + 2,
+    style = "minimal",
+    focusable = false,
+    zindex = 49,
   })
 
-  popup:mount()
+  -- Content window (the real input buffer, sits inside the border)
+  local content_win = vim.api.nvim_open_win(input_buf, true, {
+    relative = "editor",
+    row = row + 1,
+    col = col + 1,
+    width = width - 2,
+    height = height,
+    style = "minimal",
+    zindex = 50,
+  })
 
-  local function close()
-    popup:unmount()
-  end
+  vim.api.nvim_set_option_value("winbar",
+    "%#Title# Input %*  %#Comment#<CR> run  q/<Esc> close%*",
+    { win = content_win })
 
-  local function submit()
-    popup:unmount()
-    local execute = require("jupyterm.execute")
-    execute.send_input_pane(kernel)
-  end
+  w._popup_win        = content_win
+  w._popup_border_win = border_win
+  w._popup_border_buf = border_buf
 
-  popup:map("n", "q", close)
-  popup:map("n", "<Esc>", close)
-  popup:map("n", "<CR>", submit)
+  -- Schedule so these land after BufEnter autocmds (which would otherwise
+  -- re-apply the normal input keymaps on top of ours).
+  local map_opts = { buffer = input_buf, nowait = true }
+  vim.schedule(function()
+    if not (w._popup_win and vim.api.nvim_win_is_valid(w._popup_win)) then return end
+    vim.keymap.set("n", "q",     function() widget.pop_input_close(kernel) end,
+      vim.tbl_extend("force", map_opts, { desc = "Close popup" }))
+    vim.keymap.set("n", "<Esc>", function() widget.pop_input_close(kernel) end,
+      vim.tbl_extend("force", map_opts, { desc = "Close popup" }))
+    vim.keymap.set("n", "<CR>",  function()
+      widget.pop_input_close(kernel)
+      require("jupyterm.execute").send_input_pane(kernel)
+    end, vim.tbl_extend("force", map_opts, { desc = "Submit and close popup" }))
+  end)
 end
 
 --- Returns whether the widget is currently visible.

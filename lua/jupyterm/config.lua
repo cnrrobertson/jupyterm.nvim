@@ -49,7 +49,7 @@ local config = {
       -- Keymaps for the input pane
       input_keymaps = {
         {"n", "<cr>", function() require("jupyterm.execute").send_input_pane() end, "Run"},
-        {"n", "e", function() require("jupyterm.widget").pop_input() end, "Expand"},
+        {"n", "e", function() require("jupyterm.widget").pop_input() end, "Expand in popup"},
         {"n", "[[", function() require("jupyterm.display").history_prev() end, "Prev"},
         {"n", "]]", function() require("jupyterm.display").history_next() end, "Next"},
       },

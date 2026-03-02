@@ -419,12 +419,17 @@ function display.show_repl_help(kernel)
   local w = Jupyterm.kernels[kernel] and Jupyterm.kernels[kernel].widget
   if not w then return end
 
-  -- Collect all keymaps for display
-  local all_keymaps = {}
-  for _, k in ipairs(Jupyterm.config.ui.repl.input_keymaps or {}) do
-    table.insert(all_keymaps, k)
+  -- Show keymaps relevant to the current pane
+  local cur_buf = vim.api.nvim_get_current_buf()
+  local pane_keymaps
+  if cur_buf == w.buf_nrs.output then
+    pane_keymaps = Jupyterm.config.ui.repl.output_keymaps or {}
+  else
+    pane_keymaps = Jupyterm.config.ui.repl.input_keymaps or {}
   end
-  for _, k in ipairs(Jupyterm.config.ui.repl.output_keymaps or {}) do
+
+  local all_keymaps = {}
+  for _, k in ipairs(pane_keymaps) do
     table.insert(all_keymaps, k)
   end
   for _, k in ipairs(Jupyterm.config.ui.repl.global_keymaps or {}) do
