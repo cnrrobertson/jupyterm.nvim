@@ -406,10 +406,10 @@ function Jupyterm.setup(opts)
 
   -- Periodically refresh displayed windows and virtual text
   if Jupyterm.config.output_refresh.enabled then
-    local refresh_buf_timer = vim.loop.new_timer()
+    local refresh_buf_timer = (vim.uv or vim.loop).new_timer()
     local delay = Jupyterm.config.output_refresh.delay
     refresh_buf_timer:start(delay, delay, vim.schedule_wrap(display.refresh_windows))
-    local refresh_virt_text_timer = vim.loop.new_timer()
+    local refresh_virt_text_timer = (vim.uv or vim.loop).new_timer()
     refresh_virt_text_timer:start(delay, delay, vim.schedule_wrap(display.refresh_virt_text))
   end
 
